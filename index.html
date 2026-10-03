@@ -121,6 +121,14 @@ header{margin-left:230px;transition:margin-left .25s ease}
 .catalogItemMain{display:flex;align-items:center;gap:10px;min-width:0}
 .imagePreview{width:120px;height:120px;object-fit:contain;border:1px solid var(--bd);border-radius:12px;background:#f7faf8;margin-top:8px}
 @media(max-width:480px){.productImg{width:68px;height:68px}.productVisual{gap:9px}}
+
+.catalogPicker{border:1px solid var(--bd);border-radius:10px;background:#fff;max-height:300px;overflow:auto;margin-top:6px}
+.catalogPickItem{width:100%;border:0;border-bottom:1px solid #edf1ee;border-radius:0;background:#fff;color:var(--txt);padding:9px;display:flex;align-items:center;gap:11px;text-align:left;min-height:62px}
+.catalogPickItem:last-child{border-bottom:0}.catalogPickItem:hover,.catalogPickItem:focus{background:#f0f7f2}
+.catalogPickItem img{width:52px;height:52px;object-fit:contain;border:1px solid var(--bd);border-radius:8px;background:#f7faf8;flex:0 0 auto}
+.catalogPickNoImg{width:52px;height:52px;border:1px solid var(--bd);border-radius:8px;background:#f1f5f2;display:grid;place-items:center;color:#849188;font-size:22px;flex:0 0 auto}
+.catalogPickName{font-weight:700;overflow-wrap:anywhere}
+.catalogPickEmpty{padding:12px;color:var(--mut);font-size:13px}
 </style>
 </head>
 <body>
@@ -147,7 +155,7 @@ header{margin-left:230px;transition:margin-left .25s ease}
  <button class="menuBtn" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
  <div><b>✓ ValidaFácil</b><small>Validades e alertas</small></div>
  <div class="mobileTitle" id="mobileTitle">Painel</div>
- <div class="userBar"><span class="userText" id="headerUser"></span><button class="secondary syncBtn" onclick="sync(this)">↻ Sincronizar</button><button class="secondary logoutBtn" onclick="logout()">Sair</button></div>
+ <div class="userBar"><span class="userText" id="headerUser"></span><button class="secondary logoutBtn" onclick="logout()">Sair</button></div>
 </header>
 <div class="wrap">
 <section id="painel"></section><section id="scanner" class="hide"></section><section id="produtos" class="hide"></section><section id="catalogo" class="hide"></section><section id="config" class="hide"></section><section id="usuarios" class="hide"></section>
@@ -158,6 +166,7 @@ header{margin-left:230px;transition:margin-left .25s ease}
 const API_URL = 'https://script.google.com/macros/s/AKfycbxEj5V1cBeEUrIwolH8xswG8Cu8gDc6CEKk1wvLXb-GKzZbCw2Fr90wQZZ7oHkG1mXK/exec';
 let DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};
 let AUTH={token:localStorage.getItem('validafacil_token')||'',user:null};
+let AUTO_SYNC_BUSY=false,SAVE_BUSY=false,BASE_DB=null;
 const $=id=>document.getElementById(id), todayISO=()=>new Date().toISOString().slice(0,10);
 function toast(t){let x=document.createElement('div');x.className='toast';x.textContent=t;document.body.appendChild(x);setTimeout(()=>x.remove(),2800)}
 function busy(btn,label='Carregando...'){if(!btn||btn.dataset.busy)return false;btn.dataset.busy='1';btn.dataset.old=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="btn-spinner"></span>'+label;return true}
@@ -171,8 +180,40 @@ async function api(func,payload={}){
  let r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
  let j=await r.json();if(!j.ok){if(j.code==='AUTH_REQUIRED'||j.code==='SESSION_EXPIRED')forceLogout();throw new Error(j.error||'Erro na API')}return j;
 }
-async function sync(btn){return withBusy(btn,'Sincronizando...',async()=>{try{let r=await api('getDatabase');DB=r.data;DB.catalogoImagens=DB.catalogoImagens||{};render();toast('Dados sincronizados.')}catch(e){alert(e.message)}})}
-async function saveDB(){try{await api('saveDatabase',DB);render();toast('Salvo no Google Drive.');return true}catch(e){alert(e.message);return false}}
+function modalOpen(){return !!$('modal')?.innerHTML.trim()}
+function cloneDB(x){return JSON.parse(JSON.stringify(x))}
+function acceptServerDB(data){
+ DB=data;DB.catalogoImagens=DB.catalogoImagens||{};DB.revisao=Number(DB.revisao||0);
+ BASE_DB=cloneDB(DB);
+}
+async function autoSync(){
+ if(!AUTH.token||AUTO_SYNC_BUSY||SAVE_BUSY||document.hidden||modalOpen())return;
+ AUTO_SYNC_BUSY=true;
+ try{
+  let r=await api('getDatabase');
+  acceptServerDB(r.data);render();
+ }catch(e){
+  if(e.message!=='Faça login para continuar.'&&e.message!=='Sessão expirada. Entre novamente.')console.warn('Sincronização automática:',e);
+ }finally{AUTO_SYNC_BUSY=false}
+}
+function startAutoSync(){/* sem temporizador: sincroniza apenas em momentos seguros */}
+function stopAutoSync(){AUTO_SYNC_BUSY=false}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AUTH.token)autoSync()});
+window.addEventListener('focus',()=>{if(AUTH.token)autoSync()});
+
+async function sync(btn){return withBusy(btn,'Sincronizando...',async()=>{try{let r=await api('getDatabase');acceptServerDB(r.data);render();toast('Dados sincronizados.')}catch(e){alert(e.message)}})}
+async function saveDB(){
+ if(SAVE_BUSY)return false;
+ SAVE_BUSY=true;
+ try{
+  const base=BASE_DB||cloneDB(DB);
+  const r=await api('saveDatabase',{baseRevision:Number(base.revisao||0),base:base,data:DB});
+  acceptServerDB(r.data);
+  render();toast('Salvo no Google Drive.');return true;
+ }catch(e){
+  alert(e.message);return false;
+ }finally{SAVE_BUSY=false}
+}
 function prod(id){return DB.produtos.find(x=>x.id===id)}
 function days(s){let a=new Date();a.setHours(0,0,0,0);return Math.round((new Date(s+'T00:00:00')-a)/86400000)}
 function br(s){return new Date(s+'T00:00:00').toLocaleDateString('pt-BR')}
@@ -272,10 +313,31 @@ function showCode(c){
 function lotCard(l){return `<div class="lot"><div class="lothead"><div><b>${l.quantidade} unidade(s)</b><div>Validade: ${br(l.validade)} • aviso ${l.avisoDiasAntes} dia(s) antes</div><div>${pill(l.validade)}</div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');editLot('${l.id}')">Editar</button></div></div>`}
 function openNewProduct(code){
  $('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Associar código ao produto</h2><div class="field"><label>Código</label><input value="${esc(code)}" disabled></div>
- <div class="field"><label>Escolher nome do catálogo</label><input id="nameSearch" list="namesList" placeholder="Digite para pesquisar..."><datalist id="namesList">${DB.catalogo.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
- <div class="mut">Se o nome não existir, basta digitar um novo nome.</div>
+ <div class="field"><label>Escolher nome do catálogo</label><input id="nameSearch" autocomplete="off" placeholder="Digite para pesquisar..." oninput="renderProductCatalogChoices(this.value)" onfocus="renderProductCatalogChoices(this.value)"><div id="productCatalogChoices" class="catalogPicker"></div></div>
+ <div class="mut">Toque em um produto da lista. Se o nome não existir, basta digitar um novo nome.</div>
  <div class="field" style="margin-top:12px"><label>Imagem do produto (opcional)</label><input id="newProductImage" type="file" accept="image/*" capture="environment" onchange="previewChosenImage(this,'newImagePreview')"><img id="newImagePreview" class="imagePreview hide" alt="Prévia"></div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveNewProduct('${esc(code)}',this)">Continuar</button></div></div></div>`;
+ renderProductCatalogChoices('');
 }
+function renderProductCatalogChoices(q=''){
+ const box=$('productCatalogChoices');if(!box)return;
+ const nq=normalizeName(q);
+ const items=DB.catalogo.filter(n=>!nq||normalizeName(n).includes(nq)).slice(0,80);
+ if(!items.length){box.innerHTML='<div class="catalogPickEmpty">Nenhum produto encontrado. Você pode cadastrar este nome como novo.</div>';return}
+ box.innerHTML=items.map(n=>{
+  const url=DB.catalogoImagens?.[normalizeName(n)]||'';
+  const visual=url?`<img src="${esc(url)}" alt="" loading="lazy" onerror="this.outerHTML='<span class=&quot;catalogPickNoImg&quot;>▧</span>'">`:`<span class="catalogPickNoImg">▧</span>`;
+  return `<button type="button" class="catalogPickItem" onclick="chooseCatalogProduct('${encodeURIComponent(n)}')">${visual}<span class="catalogPickName">${esc(n)}</span></button>`;
+ }).join('');
+}
+function chooseCatalogProduct(encodedName){
+ const nome=decodeURIComponent(encodedName),input=$('nameSearch');if(!input)return;
+ input.value=nome;
+ renderProductCatalogChoices(nome);
+ const url=DB.catalogoImagens?.[normalizeName(nome)]||'';
+ const preview=$('newImagePreview');
+ if(preview&&url){preview.src=url;preview.classList.remove('hide')}
+}
+
 async function saveNewProduct(code,btn){
  let nome=$('nameSearch').value.replace(/\s+/g,' ').trim();if(!nome)return alert('Informe o nome.');
  return withBusy(btn,'Salvando...',async()=>{
@@ -435,14 +497,14 @@ function showAuthLogin(msg=''){
  $('authScreen').classList.remove('hide');
  $('authContent').innerHTML=`${msg?`<p class="mut" style="text-align:center">${esc(msg)}</p>`:''}<div class="field"><label>E-mail</label><input id="loginEmail" type="email" autocomplete="username" enterkeyhint="next"></div><div class="field"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login(document.getElementById('loginBtn'))"></div><button id="loginBtn" class="primary bigscan" onclick="login(this)">Entrar</button><div class="authLinks"><button class="linkBtn" onclick="showForgot()">Esqueci minha senha</button></div>`;
 }
-async function login(btn){const email=$('loginEmail').value.trim(),senha=$('loginPass').value;if(!email||!senha)return alert('Informe e-mail e senha.');return withBusy(btn,'Entrando...',async()=>{try{const r=await api('login',{email,senha});AUTH.token=r.token;AUTH.user=r.user;localStorage.setItem('validafacil_token',AUTH.token);$('authScreen').classList.add('hide');await sync()}catch(e){alert(e.message)}})}
-function forceLogout(){AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin('Sua sessão terminou. Entre novamente.')}
-async function logout(){try{if(AUTH.token)await api('logout')}catch(e){}AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};showAuthLogin()}
+async function login(btn){const email=$('loginEmail').value.trim(),senha=$('loginPass').value;if(!email||!senha)return alert('Informe e-mail e senha.');return withBusy(btn,'Entrando...',async()=>{try{const r=await api('login',{email,senha});AUTH.token=r.token;AUTH.user=r.user;localStorage.setItem('validafacil_token',AUTH.token);$('authScreen').classList.add('hide');await sync();startAutoSync()}catch(e){alert(e.message)}})}
+function forceLogout(){stopAutoSync();AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin('Sua sessão terminou. Entre novamente.')}
+async function logout(){stopAutoSync();try{if(AUTH.token)await api('logout')}catch(e){}AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};showAuthLogin()}
 function showForgot(){$('authContent').innerHTML=`<h3>Redefinir senha</h3><p class="mut">Informe o e-mail cadastrado. Enviaremos um código de verificação válido por 15 minutos.</p><div class="field"><label>E-mail</label><input id="forgotEmail" type="email"></div><button class="primary bigscan" onclick="requestReset(this)">Enviar código</button><div class="authLinks"><button class="linkBtn" onclick="showAuthLogin()">Voltar ao login</button></div>`}
 async function requestReset(btn){const email=$('forgotEmail').value.trim();if(!email)return alert('Informe o e-mail.');return withBusy(btn,'Enviando...',async()=>{try{await api('requestPasswordReset',{email});showReset(email)}catch(e){alert(e.message)}})}
 function showReset(email){$('authContent').innerHTML=`<h3>Criar nova senha</h3><p class="mut">Digite o código enviado para <b>${esc(email)}</b>.</p><div class="field"><label>Código</label><input id="resetCode" inputmode="numeric" autocomplete="one-time-code"></div><div class="field"><label>Nova senha</label><input id="resetPass" type="password" minlength="6"></div><div class="field"><label>Confirmar nova senha</label><input id="resetPass2" type="password" minlength="6"></div><button class="primary bigscan" onclick="confirmReset('${esc(email)}',this)">Alterar senha</button><div class="authLinks"><button class="linkBtn" onclick="showAuthLogin()">Voltar ao login</button></div>`}
 async function confirmReset(email,btn){const codigo=$('resetCode').value.trim(),senha=$('resetPass').value,senha2=$('resetPass2').value;if(senha!==senha2)return alert('As senhas não coincidem.');if(senha.length<6)return alert('A senha deve ter pelo menos 6 caracteres.');return withBusy(btn,'Alterando...',async()=>{try{await api('confirmPasswordReset',{email,codigo,novaSenha:senha});showAuthLogin('Senha alterada com sucesso.')}catch(e){alert(e.message)}})}
-async function restoreSession(){if(!AUTH.token){showAuthLogin();return}try{const r=await api('session');AUTH.user=r.user;$('authScreen').classList.add('hide');await sync()}catch(e){AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin()}}
+async function restoreSession(){if(!AUTH.token){showAuthLogin();return}try{const r=await api('session');AUTH.user=r.user;$('authScreen').classList.add('hide');await sync();startAutoSync()}catch(e){AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin()}}
 async function loadUsers(){if(AUTH.user?.perfil!=='admin')return;try{const r=await api('listUsers');const box=$('usersList');if(!box)return;box.innerHTML=r.users.map(u=>`<div class="userItem"><div class="userMeta"><b>${esc(u.nome)}</b><span>${esc(u.email)}</span><span class="roleBadge">${u.perfil==='admin'?'Administrador':'Usuário'}${u.ativo?'':' • Inativo'}</span></div><div class="row">${u.id!==AUTH.user.id?`<button class="${u.ativo?'warning':'secondary'}" onclick="toggleUser('${u.id}',${!u.ativo},this)">${u.ativo?'Inativar':'Reativar'}</button>`:''}<button class="secondary" onclick="adminReset('${u.id}',this)">Enviar redefinição</button></div></div>`).join('')||'<p class="mut">Nenhum usuário.</p>'}catch(e){if($('usersList'))$('usersList').innerHTML=`<p class="mut">${esc(e.message)}</p>`}}
 function openNewUser(){$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Adicionar usuário</h2><div class="field"><label>Nome</label><input id="un"></div><div class="field"><label>E-mail</label><input id="ue" type="email"></div><div class="field"><label>Perfil</label><select id="up"><option value="user">Usuário</option><option value="admin">Administrador</option></select></div><p class="mut">O usuário receberá por e-mail um código para criar a própria senha.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="createUser(this)">Cadastrar</button></div></div></div>`}
 async function createUser(btn){const nome=$('un').value.trim(),email=$('ue').value.trim(),perfil=$('up').value;if(!nome||!email)return alert('Informe nome e e-mail.');return withBusy(btn,'Cadastrando...',async()=>{try{await api('createUser',{nome,email,perfil});closeModal();await loadUsers();toast('Usuário cadastrado e convite enviado.')}catch(e){alert(e.message)}})}
