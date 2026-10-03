@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#14532d">
 <title>ValidaFácil</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{--g:#166534;--g2:#22c55e;--bg:#f4f7f5;--card:#fff;--txt:#17201b;--mut:#66736a;--bd:#dce5df;--red:#b91c1c;--org:#c2410c;--yel:#a16207}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--txt)}
@@ -74,8 +73,7 @@ header{margin-left:230px;transition:margin-left .25s ease}
  header>div:first-of-type{display:none}
  .mobileTitle{display:block;flex:1;min-width:0;font-weight:800;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .menuBtn{display:inline-flex;align-items:center;justify-content:center;min-width:42px;min-height:42px}
- header .syncBtn{padding:10px 11px;min-height:42px;font-size:0}
- header .syncBtn::after{content:'↻';font-size:20px}
+header .syncBtn::after{content:'↻';font-size:20px}
  header .logoutBtn{padding:10px 12px;min-height:42px;font-size:13px;background:#ffffff16;color:#fff;border:1px solid #ffffff22}
  .wrap{margin-left:0;padding:12px 10px 80px}
  .sidebar{transform:translateX(-105%);transition:transform .25s ease;width:min(82vw,290px);box-shadow:5px 0 25px #0005}
@@ -131,15 +129,42 @@ header{margin-left:230px;transition:margin-left .25s ease}
 .catalogPickEmpty{padding:12px;color:var(--mut);font-size:13px}
 
 .appLoading{position:fixed;inset:0;z-index:99999;background:rgba(247,250,248,.96);display:flex;align-items:center;justify-content:center;padding:24px}
-.appLoading.hide{display:none}.appLoadingBox{text-align:center;max-width:360px}
-.appSpinner{width:48px;height:48px;border:5px solid #dce7df;border-top-color:var(--green);border-radius:50%;animation:appSpin .8s linear infinite;margin:0 auto 14px}
+.appLoading.hide{display:none}
 .appLoadingTitle{font-weight:800;font-size:18px;margin-bottom:5px}.appLoadingText{color:var(--mut);font-size:14px}
 @keyframes appSpin{to{transform:rotate(360deg)}}
+
+/* UX e desempenho */
+.stat.statAction{cursor:pointer;text-align:left;transition:transform .15s,box-shadow .15s;border:1px solid transparent}
+.stat.statAction:hover{transform:translateY(-1px);box-shadow:0 5px 16px #00000012}
+.stat.statAction.activeFilter{border-color:#166534;box-shadow:0 0 0 2px #16653418}
+.productSearchBar{display:flex;gap:8px;align-items:center;margin:12px 0}
+.productSearchBar input{flex:1}
+.saveState{font-size:12px;color:#dbe9df;min-width:68px;text-align:right}
+.saveState.saving{opacity:.85}.saveState.saved{color:#bbf7d0}.saveState.error{color:#fecaca}
+.scanOk{display:flex;align-items:center;gap:8px;background:#dcfce7;color:#166534;border-radius:10px;padding:9px 11px;margin:10px 0;font-weight:700}
+.emptyAction{padding:18px;text-align:center;border:1px dashed var(--bd);border-radius:12px}
+@media(max-width:760px){.saveState{display:none}.productSearchBar{position:sticky;top:61px;background:var(--bg);z-index:4;padding:5px 0}}
+
+
+.syncManual{padding:8px 11px;font-size:12px}
+@media(max-width:760px){.syncManual{padding:8px 9px;font-size:0}.syncManual::after{content:'↻';font-size:18px}}
+
+/* Etapa 5 — UX e acessibilidade */
+.dialog:focus{outline:2px solid rgba(37,99,235,.35);outline-offset:2px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(37,99,235,.28);outline-offset:2px}
+button:disabled{opacity:.55;cursor:not-allowed}
+.moreHint{margin-top:12px;padding:11px;border-radius:10px;background:rgba(127,127,127,.08);text-align:center}
+.toast[role="status"]{max-width:min(92vw,420px)}
+
+.toast{opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}
+.toast.show{opacity:1;transform:translateY(0)}
+
+.loadMoreWrap{display:flex;justify-content:center;padding:14px 0 4px}
+.loadMoreWrap button{min-width:150px}
+.catalogPickMore{grid-column:1/-1;width:100%}
 </style>
 </head>
 <body>
-<div id="appLoading" class="appLoading hide" aria-live="polite" aria-busy="true">
- <div class="appLoadingBox"><div class="appSpinner"></div><div class="appLoadingTitle">Carregando ValidaFácil</div><div id="appLoadingText" class="appLoadingText">Sincronizando os dados...</div></div>
 </div>
 <div id="authScreen" class="authScreen">
  <div class="authBox">
@@ -155,6 +180,7 @@ header{margin-left:230px;transition:margin-left .25s ease}
   <button class="tab" data-p="produtos">▤ &nbsp; Produtos</button>
   <button class="tab" data-p="catalogo">≡ &nbsp; Catálogo</button>
   <button class="tab" data-p="config">⚙ &nbsp; Configurações</button>
+  <button class="tab hide" id="auditTab" data-p="auditoria">☷ &nbsp; Auditoria</button>
   <button class="tab hide" id="usersTab" data-p="usuarios">♙ &nbsp; Usuários</button>
  </nav>
  <div class="sidebarFoot"><div id="sideUser"></div><div style="margin-top:6px">Controle de validade</div></div>
@@ -164,10 +190,10 @@ header{margin-left:230px;transition:margin-left .25s ease}
  <button class="menuBtn" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
  <div><b>✓ ValidaFácil</b><small>Validades e alertas</small></div>
  <div class="mobileTitle" id="mobileTitle">Painel</div>
- <div class="userBar"><span class="userText" id="headerUser"></span><button class="secondary logoutBtn" onclick="logout()">Sair</button></div>
+ <div class="userBar"><span id="saveState" class="saveState"></span><button id="manualSyncBtn" class="secondary syncManual" onclick="manualSync(this)" title="Buscar dados mais recentes">Sincronizar</button><span class="userText" id="headerUser"></span><button class="secondary logoutBtn" onclick="logout(this)">Sair</button></div>
 </header>
 <div class="wrap">
-<section id="painel"></section><section id="scanner" class="hide"></section><section id="produtos" class="hide"></section><section id="catalogo" class="hide"></section><section id="config" class="hide"></section><section id="usuarios" class="hide"></section>
+<section id="painel"></section><section id="scanner" class="hide"></section><section id="produtos" class="hide"></section><section id="catalogo" class="hide"></section><section id="config" class="hide"></section><section id="auditoria" class="hide"></section><section id="usuarios" class="hide"></section>
 </div>
 <button id="backTop" class="backTop" onclick="scrollToTop()" aria-label="Voltar ao topo" title="Voltar ao topo">↑</button>
 <div id="modal"></div>
@@ -175,58 +201,229 @@ header{margin-left:230px;transition:margin-left .25s ease}
 const API_URL = 'https://script.google.com/macros/s/AKfycbxEj5V1cBeEUrIwolH8xswG8Cu8gDc6CEKk1wvLXb-GKzZbCw2Fr90wQZZ7oHkG1mXK/exec';
 let DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};
 let AUTH={token:localStorage.getItem('validafacil_token')||'',user:null};
-let AUTO_SYNC_BUSY=false,SAVE_BUSY=false,BASE_DB=null;
+let AUTO_SYNC_BUSY=false,SAVE_BUSY=false,BASE_DB=null,SAVE_CURRENT=null,SAVE_PENDING=false,SAVE_CHAIN=Promise.resolve(true),SAVE_QUEUE_COUNT=0;
+let ACTIVE_PAGE=localStorage.getItem('validafacil_last_page')||'painel';
+let PANEL_LIMIT=30;
+let PANEL_FILTER='todos',PRODUCT_SEARCH='',CURRENT_SCAN_CODE='';
+let PRODUCT_BY_ID=new Map(),LOTS_BY_PRODUCT=new Map();
 const $=id=>document.getElementById(id), todayISO=()=>new Date().toISOString().slice(0,10);
-function showAppLoading(msg='Sincronizando os dados...'){const el=$('appLoading');if(!el)return;const t=$('appLoadingText');if(t)t.textContent=msg;el.classList.remove('hide')}
-function hideAppLoading(){const el=$('appLoading');if(el)el.classList.add('hide')}
-
-function toast(t){let x=document.createElement('div');x.className='toast';x.textContent=t;document.body.appendChild(x);setTimeout(()=>x.remove(),2800)}
-function busy(btn,label='Carregando...'){if(!btn||btn.dataset.busy)return false;btn.dataset.busy='1';btn.dataset.old=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="btn-spinner"></span>'+label;return true}
-function free(btn){if(!btn)return;btn.disabled=false;btn.innerHTML=btn.dataset.old||btn.innerHTML;delete btn.dataset.old;delete btn.dataset.busy}
-async function withBusy(btn,label,fn){if(!busy(btn,label))return;try{return await fn()}finally{free(btn)}}
-function quickBusy(btn,label='Processando...'){if(!busy(btn,label))return;setTimeout(()=>free(btn),180)}
-
-async function api(func,payload={}){
- if(API_URL.includes('COLE_AQUI')) throw new Error('Configure a URL do Apps Script no index.html.');
- let body={func,payload};if(AUTH.token)body.token=AUTH.token;
- let r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
- let j=await r.json();if(!j.ok){if(j.code==='AUTH_REQUIRED'||j.code==='SESSION_EXPIRED')forceLogout();throw new Error(j.error||'Erro na API')}return j;
-}
 function modalOpen(){return !!$('modal')?.innerHTML.trim()}
 function cloneDB(x){return JSON.parse(JSON.stringify(x))}
-function acceptServerDB(data){
- DB=data;DB.catalogoImagens=DB.catalogoImagens||{};DB.revisao=Number(DB.revisao||0);
- BASE_DB=cloneDB(DB);
+function ensureDB(){
+ if(!DB||typeof DB!=='object')DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7},revisao:0};
+ if(!Array.isArray(DB.catalogo))DB.catalogo=[];
+ if(!DB.catalogoImagens||typeof DB.catalogoImagens!=='object')DB.catalogoImagens={};
+ if(!Array.isArray(DB.produtos))DB.produtos=[];
+ if(!Array.isArray(DB.lotes))DB.lotes=[];
+ if(!DB.config||typeof DB.config!=='object')DB.config={avisoPadraoDias:7};
+ DB.revisao=Number(DB.revisao||0);
+ return DB;
 }
-async function autoSync(){
- if(!AUTH.token||AUTO_SYNC_BUSY||SAVE_BUSY||document.hidden||modalOpen())return;
- AUTO_SYNC_BUSY=true;
- try{
-  let r=await api('getDatabase');
-  acceptServerDB(r.data);render();
- }catch(e){
-  if(e.message!=='Faça login para continuar.'&&e.message!=='Sessão expirada. Entre novamente.')console.warn('Sincronização automática:',e);
- }finally{AUTO_SYNC_BUSY=false}
-}
-function startAutoSync(){/* sem temporizador: sincroniza apenas em momentos seguros */}
-function stopAutoSync(){AUTO_SYNC_BUSY=false}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AUTH.token)autoSync()});
-window.addEventListener('focus',()=>{if(AUTH.token)autoSync()});
 
-async function sync(btn){return withBusy(btn,'Sincronizando...',async()=>{try{let r=await api('getDatabase');acceptServerDB(r.data);render();toast('Dados sincronizados.')}catch(e){alert(e.message)}})}
-async function saveDB(){
- if(SAVE_BUSY)return false;
- SAVE_BUSY=true;
- try{
-  const base=BASE_DB||cloneDB(DB);
-  const r=await api('saveDatabase',{baseRevision:Number(base.revisao||0),base:base,data:DB});
-  acceptServerDB(r.data);
-  render();toast('Salvo no Google Drive.');return true;
- }catch(e){
-  alert(e.message);return false;
- }finally{SAVE_BUSY=false}
+let XLSX_LOADING=null;
+function ensureXLSX(){
+ if(window.XLSX)return Promise.resolve(window.XLSX);
+ if(XLSX_LOADING)return XLSX_LOADING;
+ XLSX_LOADING=new Promise((resolve,reject)=>{
+  const s=document.createElement('script');
+  s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  s.async=true;
+  s.onload=()=>window.XLSX?resolve(window.XLSX):reject(new Error('Biblioteca XLSX não ficou disponível.'));
+  s.onerror=()=>reject(new Error('Não foi possível carregar o leitor de Excel. Verifique sua conexão.'));
+  document.head.appendChild(s);
+ });
+ return XLSX_LOADING.finally(()=>{if(!window.XLSX)XLSX_LOADING=null});
 }
-function prod(id){return DB.produtos.find(x=>x.id===id)}
+function debounce(fn,wait=250){let timer;return function(...args){clearTimeout(timer);timer=setTimeout(()=>fn.apply(this,args),wait)}}
+function newId(){
+ if(window.crypto&&typeof crypto.randomUUID==='function')return crypto.randomUUID();
+ if(window.crypto&&crypto.getRandomValues){
+  const a=new Uint8Array(16);crypto.getRandomValues(a);a[6]=(a[6]&15)|64;a[8]=(a[8]&63)|128;
+  const x=[...a].map(b=>b.toString(16).padStart(2,'0')).join('');
+  return `${x.slice(0,8)}-${x.slice(8,12)}-${x.slice(12,16)}-${x.slice(16,20)}-${x.slice(20)}`;
+ }
+ return 'id-'+Date.now()+'-'+Math.random().toString(16).slice(2);
+}
+
+function normalizeBarcode(v=''){
+ let s=String(v??'').trim().replace(/\s+/g,'');
+ // Cadastro operacional: GTIN/UPC/EAN numérico de 6 a 14 dígitos.
+ if(!/^\d{6,14}$/.test(s))return '';
+ // Normaliza UPC-A para a representação EAN-13 equivalente.
+ if(s.length===12)s='0'+s;
+ return s;
+}
+function requireBarcode(v){
+ const c=normalizeBarcode(v);
+ if(!c)throw new Error('Código de barras inválido. Use somente 6 a 14 dígitos.');
+ return c;
+}
+function jsArg(v){return JSON.stringify(String(v??'')).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')}
+function rebuildIndexes(){
+ PRODUCT_BY_ID=new Map();
+ LOTS_BY_PRODUCT=new Map();
+ (DB.produtos||[]).forEach(p=>PRODUCT_BY_ID.set(p.id,p));
+ (DB.lotes||[]).forEach(l=>{
+  if(!LOTS_BY_PRODUCT.has(l.produtoId))LOTS_BY_PRODUCT.set(l.produtoId,[]);
+  LOTS_BY_PRODUCT.get(l.produtoId).push(l);
+ });
+ LOTS_BY_PRODUCT.forEach(a=>a.sort((x,y)=>String(x.validade||'').localeCompare(String(y.validade||''))));
+}
+
+
+function busy(btn,label='Carregando...'){
+ if(!btn||btn.dataset.busy)return false;
+ btn.dataset.busy='1';btn.dataset.old=btn.innerHTML;
+ btn.disabled=true;btn.innerHTML='<span class="btn-spinner"></span>'+label;
+ return true;
+}
+function free(btn){
+ if(!btn)return;
+ btn.disabled=false;btn.innerHTML=btn.dataset.old||btn.innerHTML;
+ delete btn.dataset.old;delete btn.dataset.busy;
+}
+async function withBusy(btn,label,fn){
+ if(!busy(btn,label))return;
+ try{return await fn()}catch(e){alert(e?.message||String(e));return false}finally{free(btn)}
+}
+function quickBusy(btn,label='Processando...'){
+ if(!busy(btn,label))return;
+ setTimeout(()=>free(btn),180);
+}
+
+async function api(func,payload={}){
+ const body={func,payload};
+ if(AUTH.token)body.token=AUTH.token;
+ let response;
+ try{
+  response=await fetch(API_URL,{
+   method:'POST',
+   headers:{'Content-Type':'text/plain;charset=utf-8'},
+   body:JSON.stringify(body)
+  });
+ }catch(e){
+  throw new Error(`Falha de conexão com o servidor durante "${func}". Verifique sua internet e tente novamente.`);
+ }
+ const raw=(await response.text()).trim();
+ if(!response.ok)throw new Error(`Falha do servidor durante "${func}" (HTTP ${response.status}).`);
+ if(!raw||raw.startsWith('<'))throw new Error(`Resposta inválida durante "${func}". Verifique se a URL termina em /exec e se a implantação está atualizada.`);
+ let j;
+ try{j=JSON.parse(raw)}catch(e){throw new Error(`Resposta inválida do servidor durante "${func}".`)}
+ if(!j.ok){
+  if(j.code==='AUTH_REQUIRED'||j.code==='SESSION_EXPIRED')forceLogout();
+  throw new Error(j.error||`Erro na API durante "${func}".`);
+ }
+ return j;
+}
+
+
+function toast(message){
+ let el=$('toast');
+ if(!el){
+  el=document.createElement('div');
+  el.id='toast';el.className='toast';
+  el.setAttribute('role','status');
+  el.setAttribute('aria-live','polite');
+  el.setAttribute('aria-atomic','true');
+  document.body.appendChild(el);
+ }
+ el.textContent=String(message||'');
+ el.classList.add('show');
+ clearTimeout(toast._timer);
+ toast._timer=setTimeout(()=>el.classList.remove('show'),2600);
+}
+
+function setSaveState(text='',kind=''){
+ const el=$('saveState');if(!el)return;
+ el.textContent=text;el.className='saveState'+(kind?' '+kind:'');
+}
+function currentPage(){return ACTIVE_PAGE||'painel'}
+function acceptServerDB(data){
+ if(!data||typeof data!=='object')throw new Error('O servidor retornou um banco de dados inválido.');
+ DB=data;ensureDB();BASE_DB=cloneDB(DB);rebuildIndexes();
+}
+function stopAutoSync(){AUTO_SYNC_BUSY=false}
+
+async function loadApplicationData(){
+ // Mesma sequência do botão Sincronizar da versão comprovadamente funcional.
+ const r=await api('getDatabase');
+ if(!r||!r.data||typeof r.data!=='object')throw new Error('O servidor não retornou os dados do sistema.');
+ DB=r.data;
+ DB.catalogo=Array.isArray(DB.catalogo)?DB.catalogo:[];
+ DB.catalogoImagens=DB.catalogoImagens||{};
+ DB.produtos=Array.isArray(DB.produtos)?DB.produtos:[];
+ DB.lotes=Array.isArray(DB.lotes)?DB.lotes:[];
+ DB.config=DB.config||{avisoPadraoDias:7};
+ DB.revisao=Number(DB.revisao||0);
+ BASE_DB=cloneDB(DB);
+ render();
+ return true;
+}
+
+function updateConnectionState(){
+ if(!navigator.onLine)setSaveState('Sem conexão','error');
+ else if($('saveState')?.textContent==='Sem conexão')setSaveState('');
+}
+window.addEventListener('online',updateConnectionState);
+window.addEventListener('offline',updateConnectionState);
+
+async function manualSync(btn){
+ return withBusy(btn,'Sincronizando...',async()=>{
+  try{
+   setSaveState('Sincronizando…','saving');
+   const r=await api('getDatabase');
+   acceptServerDB(r.data);render();
+   setSaveState('Sincronizado ✓','saved');
+   setTimeout(()=>{if($('saveState')?.textContent==='Sincronizado ✓')setSaveState('')},2200);
+   toast('Dados atualizados do servidor.');
+  }catch(e){setSaveState('Erro de sincronização','error');alert(e.message)}
+ });
+}
+
+async function saveDB(){
+ ensureDB();
+ // Cada chamada captura o estado solicitado naquele instante.
+ const requestedData=cloneDB(DB);
+ const requestedBase=cloneDB(BASE_DB||DB);
+ SAVE_QUEUE_COUNT++;
+ const run=()=>saveDBCore(requestedBase,requestedData);
+ const result=SAVE_CHAIN.then(run,run);
+ SAVE_CHAIN=result.then(()=>true,()=>true);
+ try{return await result}
+ finally{SAVE_QUEUE_COUNT=Math.max(0,SAVE_QUEUE_COUNT-1)}
+}
+async function saveDBCore(base,data){
+ SAVE_BUSY=true;
+ setSaveState('Salvando…','saving');
+ try{
+  const r=await api('saveDatabase',{
+   baseRevision:Number(base.revisao||0),
+   base:base,
+   data:data
+  });
+  // Se existe outro save aguardando, não substitui a UI pelo estado intermediário.
+  // BASE_DB, porém, avança para a resposta confirmada do servidor.
+  if(SAVE_QUEUE_COUNT>1){
+   BASE_DB=cloneDB(r.data);
+  }else{
+   acceptServerDB(r.data);
+   render();
+  }
+  setSaveState(SAVE_QUEUE_COUNT>1?'Salvando alterações pendentes…':'Salvo ✓',SAVE_QUEUE_COUNT>1?'saving':'saved');
+  if(SAVE_QUEUE_COUNT<=1)setTimeout(()=>{if($('saveState')?.textContent==='Salvo ✓')setSaveState('')},2200);
+  if(SAVE_QUEUE_COUNT<=1)toast('Salvo no Google Drive.');
+  return true;
+ }catch(e){
+  setSaveState('Erro ao salvar','error');
+  alert('Erro ao salvar: '+(e?.message||String(e)));
+  return false;
+ }finally{
+  SAVE_BUSY=false;
+  SAVE_CURRENT=null;
+  SAVE_PENDING=false;
+ }
+}
+function prod(id){return PRODUCT_BY_ID.get(id)||DB.produtos.find(x=>x.id===id)}
 function days(s){let a=new Date();a.setHours(0,0,0,0);return Math.round((new Date(s+'T00:00:00')-a)/86400000)}
 function br(s){return new Date(s+'T00:00:00').toLocaleDateString('pt-BR')}
 function stat(s){let d=days(s);return d<0?['Vencido','red']:d<=3?['Até 3 dias','org']:d<=7?['Até 7 dias','yel']:d<=15?['Até 15 dias','green']:['No prazo','gray']}
@@ -250,61 +447,178 @@ function catalogHasName(name){
  const key=normalizeName(name);
  return DB.catalogo.some(n=>normalizeName(n)===key);
 }
-function render(){
- let ativos=DB.lotes.filter(l=>l.quantidade>0), venc=ativos.filter(l=>days(l.validade)<0), prox=ativos.filter(l=>days(l.validade)>=0&&days(l.validade)<=7);
- $('painel').innerHTML=`<div class="grid"><div class="stat"><strong>${DB.produtos.length}</strong><span>Produtos</span></div><div class="stat"><strong>${ativos.reduce((s,l)=>s+l.quantidade,0)}</strong><span>Unidades</span></div><div class="stat"><strong>${prox.length}</strong><span>Lotes até 7 dias</span></div><div class="stat"><strong>${venc.length}</strong><span>Lotes vencidos</span></div></div>
- <div class="card"><h2>Prioridades</h2>${lotsTable([...ativos].sort((a,b)=>a.validade.localeCompare(b.validade)).slice(0,20))}</div>`;
+function renderPainel(){
+ const ativos=DB.lotes.filter(l=>Number(l.quantidade||0)>0);
+ const venc=ativos.filter(l=>days(l.validade)<0);
+ const d3=ativos.filter(l=>days(l.validade)>=0&&days(l.validade)<=3);
+ const d7=ativos.filter(l=>days(l.validade)>=0&&days(l.validade)<=7);
+ let lista=[...ativos];
+ if(PANEL_FILTER==='vencidos')lista=venc;
+ else if(PANEL_FILTER==='3dias')lista=d3;
+ else if(PANEL_FILTER==='7dias')lista=d7;
+ lista.sort((a,b)=>String(a.validade||'').localeCompare(String(b.validade||'')));
+ $('painel').innerHTML=`<div class="grid">
+  <button class="stat statAction ${PANEL_FILTER==='todos'?'activeFilter':''}" onclick="setPanelFilter('todos')"><strong>${DB.produtos.length}</strong><span>Produtos</span></button>
+  <div class="stat"><strong>${ativos.reduce((s,l)=>s+Number(l.quantidade||0),0)}</strong><span>Unidades</span></div>
+  <button class="stat statAction ${PANEL_FILTER==='7dias'?'activeFilter':''}" onclick="setPanelFilter('7dias')"><strong>${d7.length}</strong><span>Lotes até 7 dias</span></button>
+  <button class="stat statAction ${PANEL_FILTER==='vencidos'?'activeFilter':''}" onclick="setPanelFilter('vencidos')"><strong>${venc.length}</strong><span>Lotes vencidos</span></button>
+ </div>
+ <div class="card"><div class="row" style="justify-content:space-between"><h2>Prioridades</h2>${PANEL_FILTER!=='todos'?`<button class="secondary" onclick="setPanelFilter('todos')">Limpar filtro</button>`:''}</div>
+ ${lotsTable(lista.slice(0,PANEL_LIMIT))}
+  ${lista.length?`<div id="panelCountMore" class="moreHint">Mostrando <b>${Math.min(PANEL_LIMIT,lista.length)}</b> de <b>${lista.length}</b> lote(s)${PANEL_LIMIT<lista.length?' <button class="secondary" onclick="showMorePanel()">Ver mais</button>':''}</div>`:''}</div>`;
+}
+function showMorePanel(){PANEL_LIMIT+=30;renderPainel()}
+function setPanelFilter(f){PANEL_FILTER=f;PANEL_LIMIT=30;renderPainel()}
+function renderScanner(){
  $('scanner').innerHTML=`<div class="card"><h2>Escanear produto</h2><p class="mut">Use a câmera quando disponível ou digite o código de barras.</p><div class="field"><label>Código de barras</label><input id="scanInput" inputmode="numeric" enterkeyhint="search" autocomplete="off" placeholder="Leia ou digite o código" onkeydown="scanInputKey(event)"></div><div class="row"><button class="primary bigscan" onclick="lookupCode(this)">Consultar código</button><button class="secondary" onclick="cameraScan(this)">📷 Usar câmera</button></div><div id="scanResult"></div></div>`;
- $('produtos').innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Produtos e lotes</h2><div class="mut">Cada código pode ter várias validades e avisos diferentes.</div></div></div>${productCards()}</div>`;
+ if(CURRENT_SCAN_CODE){$('scanInput').value=CURRENT_SCAN_CODE;showCode(CURRENT_SCAN_CODE,false)}
+}
+function renderProdutos(){
+ $('produtos').innerHTML=`<div class="card"><div><h2>Produtos e lotes</h2><div class="mut">Pesquise por nome ou código de barras. Os lotes aparecem pela validade mais próxima.</div></div>
+ <div class="productSearchBar"><input id="productSearch" value="${esc(PRODUCT_SEARCH)}" placeholder="Pesquisar produto ou código..." oninput="debouncedFilterProducts(this.value)"></div>
+ <div id="productList">${productCards(PRODUCT_SEARCH)}</div></div>`;
+}
+function filterProducts(q=''){PRODUCT_SEARCH=q;const box=$('productList');if(box)box.innerHTML=productCards(q)}
+function renderCatalogo(){
+ CATALOG_VISIBLE=CATALOG_PAGE_SIZE;
  $('catalogo').innerHTML=`<div class="card"><h2>Importar catálogo de nomes</h2><p class="mut">Selecione Excel (.xlsx/.xls) ou CSV. A 1ª linha é o cabeçalho, a 2ª é ignorada e a importação começa na 3ª linha. A imagem será lida da última coluna preenchida de cada linha.</p><input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" onchange="readSheet(event)"><div id="importArea"></div></div>
- <div class="card"><h3>Catálogo importado (${DB.catalogo.length})</h3><input id="catSearch" placeholder="Pesquisar nome..." oninput="filterCatalog()"><div id="catList">${catalogList(DB.catalogo.slice(0,200))}</div></div>`;
+ <div class="card"><h3>Catálogo importado (${DB.catalogo.length})</h3><input id="catSearch" placeholder="Pesquisar nome..." oninput="filterCatalog(true)"><div id="catList"></div></div>`;
+ filterCatalog(true);
+}
+function renderConfig(){
  $('config').innerHTML=`<div class="card"><h2>Configurações</h2><div class="field"><label>Aviso padrão para novos lotes (dias antes)</label><input id="defaultDays" type="number" min="0" value="${DB.config?.avisoPadraoDias??7}"></div><button class="primary" onclick="saveConfig(this)">Salvar configuração</button></div>`;
+}
+function renderAdminShell(){
  const isAdmin=AUTH.user?.perfil==='admin';
  $('usersTab')?.classList.toggle('hide',!isAdmin);
+ $('auditTab')?.classList.toggle('hide',!isAdmin);
+ if(!isAdmin){$('auditoria').innerHTML='';$('usuarios').innerHTML='';return}
+ if(!$('auditoria').innerHTML.trim())$('auditoria').innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Auditoria</h2><div class="mut">O histórico fica em arquivo separado e só é baixado quando solicitado.</div></div><button class="primary" onclick="loadAudit(this)">Carregar auditoria</button></div><div class="row" style="margin:12px 0"><input id="auditSearch" placeholder="Filtrar por usuário, ação ou detalhe..." oninput="filterAudit()" disabled></div><div id="auditList"><p class="mut">Clique em <b>Carregar auditoria</b> para consultar os registros.</p></div></div>`;
+ if(!$('usuarios').innerHTML.trim())$('usuarios').innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Usuários</h2><div class="mut">Administrador e usuários possuem o mesmo acesso ao sistema; apenas o administrador gerencia usuários.</div></div><button class="primary" onclick="openNewUser()">+ Adicionar usuário</button></div><div id="usersList"><p class="mut">Abra esta tela para carregar os usuários.</p></div></div>`;
+}
+function renderPage(id){
+ if(id==='painel')renderPainel();
+ else if(id==='scanner')renderScanner();
+ else if(id==='produtos')renderProdutos();
+ else if(id==='catalogo')renderCatalogo();
+ else if(id==='config')renderConfig();
+ else if(id==='auditoria')renderAdminShell();
+ else if(id==='usuarios'){renderAdminShell();loadUsers()}
+}
+function render(){
+ ensureDB();rebuildIndexes();
  if($('headerUser'))$('headerUser').textContent=AUTH.user?.nome||'';
  if($('sideUser'))$('sideUser').innerHTML=AUTH.user?`<b>${esc(AUTH.user.nome)}</b><br>${esc(AUTH.user.email)}`:'';
- $('usuarios').innerHTML=isAdmin?`<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Usuários</h2><div class="mut">Administrador e usuários possuem o mesmo acesso ao sistema; apenas o administrador gerencia usuários.</div></div><button class="primary" onclick="openNewUser()">+ Adicionar usuário</button></div><div id="usersList"><p class="mut">Carregando...</p></div></div>`:'';
- if(isAdmin)loadUsers();
+ renderAdminShell();
+ const allowed=['painel','scanner','produtos','catalogo','config','auditoria','usuarios'];
+ if(!allowed.includes(ACTIVE_PAGE))ACTIVE_PAGE='painel';
+ if((ACTIVE_PAGE==='auditoria'||ACTIVE_PAGE==='usuarios')&&AUTH.user?.perfil!=='admin')ACTIVE_PAGE='painel';
+ renderPage(ACTIVE_PAGE);
+ document.querySelectorAll('section').forEach(s=>s.classList.toggle('hide',s.id!==ACTIVE_PAGE));
+ document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===ACTIVE_PAGE));
+ const mt=$('mobileTitle');if(mt)mt.textContent=pageTitle(ACTIVE_PAGE);
  setTimeout(updateBackTop,0);
 }
-function lotsTable(ls){if(!ls.length)return '<p class="mut">Nenhum lote.</p>';return `<div class="scroll"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Validade</th><th>Aviso</th><th>Status</th></tr></thead><tbody>${ls.map(l=>`<tr><td>${esc(prod(l.produtoId)?.nome||'?')}</td><td>${l.quantidade}</td><td>${br(l.validade)}</td><td>${l.avisoDiasAntes} dia(s)</td><td>${pill(l.validade)}</td></tr>`).join('')}</tbody></table></div>`}
+async function deleteZeroLot(id,btn){
+ ensureDB();
+ const l=DB.lotes.find(x=>x.id===id);
+ if(!l)return alert('Lote não encontrado.');
+ if(Number(l.quantidade||0)>0)return alert('Este lote ainda possui estoque. Zere a quantidade antes de excluí-lo.');
+ const p=prod(l.produtoId);
+ if(!confirm(`Excluir este lote zerado de "${p?.nome||'produto'}"?\n\nSomente este lote será removido. O produto e os demais lotes permanecerão cadastrados.`))return;
+ return withBusy(btn,'Excluindo...',async()=>{
+  const oldLotes=cloneDB(DB.lotes);
+  DB.lotes=DB.lotes.filter(x=>x.id!==id);
+  const ok=await saveDB();
+  if(ok===false){DB.lotes=oldLotes;rebuildIndexes();render();return}
+  render();toast('Lote zerado excluído.');
+ })
+}
+function lotsTable(ls){if(!ls.length)return '<p class="mut">Nenhum lote.</p>';return `<div class="scroll"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Validade</th><th>Aviso</th><th>Status</th><th>Ações</th></tr></thead><tbody>${ls.map(l=>`<tr><td>${esc(prod(l.produtoId)?.nome||'?')}</td><td>${l.quantidade}</td><td>${br(l.validade)}</td><td>${l.avisoDiasAntes} dia(s)</td><td>${pill(l.validade)}</td><td>${Number(l.quantidade||0)<=0?`<button class="danger" onclick="deleteZeroLot('${l.id}',this)">Excluir lote</button>`:'—'}</td></tr>`).join('')}</tbody></table></div>`}
 function productImageUrl(p){return p?.imagemUrl||DB.catalogoImagens?.[normalizeName(p?.nome||'')]||''}
 function imgTag(url,cls='productImg',alt='Imagem do produto'){return url?`<img class="${cls}" src="${esc(url)}" alt="${esc(alt)}" loading="lazy" onerror="this.style.display='none'">`:''}
-function productCards(){if(!DB.produtos.length)return '<p class="mut">Nenhum produto associado a código de barras ainda.</p>';return DB.produtos.map(p=>{let ls=DB.lotes.filter(l=>l.produtoId===p.id),url=productImageUrl(p);return `<div class="lot"><div class="lothead"><div class="productVisual">${imgTag(url)}<div><b>${esc(p.nome)}</b><div class="mut code">${esc(p.codigoBarras)}</div><div class="row" style="margin-top:7px"><button class="secondary" onclick="openProductImage('${p.id}')">📷 ${url?'Alterar imagem':'Adicionar imagem'}</button></div></div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');openNewLot('${p.codigoBarras}')">+ validade</button></div>${ls.length?lotsTable(ls):'<p class="mut">Sem lotes.</p>'}</div>`}).join('')}
+const debouncedFilterProducts=debounce(q=>filterProducts(q),220);
+const debouncedCatalogChoices=debounce(q=>renderProductCatalogChoices(q),220);
+function productCards(q=''){
+ const nq=normalizeName(q),raw=String(q||'').trim();
+ const items=DB.produtos.filter(p=>!nq||normalizeName(p.nome).includes(nq)||String(p.codigoBarras||'').includes(raw));
+ if(!items.length){
+  return DB.produtos.length
+   ?'<div class="emptyAction"><b>Nenhum produto encontrado.</b><div class="mut">Tente outro nome ou código de barras.</div></div>'
+   :'<div class="emptyAction"><b>Nenhum produto cadastrado ainda.</b><div class="mut" style="margin:6px 0 12px">Escaneie o primeiro código para começar.</div><button class="primary" onclick="go(\'scanner\')">Escanear primeiro produto</button></div>';
+ }
+ return items.map(p=>{
+  const ls=LOTS_BY_PRODUCT.get(p.id)||[],url=productImageUrl(p);
+  return `<div class="lot"><div class="lothead"><div class="productVisual">${imgTag(url)}<div><b>${esc(p.nome)}</b><div class="mut code">${esc(p.codigoBarras)}</div><div class="row" style="margin-top:7px"><button class="secondary" onclick="openProductImage('${p.id}')">📷 ${url?'Alterar imagem':'Adicionar imagem'}</button>${ls.every(l=>Number(l.quantidade||0)<=0)?`<button class="danger" onclick="deleteWholeProduct('${p.id}',this)">Excluir produto</button>`:''}</div></div></div><button class="secondary" onclick='quickBusy(this,"Abrindo...");openNewLot(${jsArg(p.codigoBarras)})'>+ validade</button></div>${ls.length?lotsTable(ls):'<p class="mut">Sem lotes.</p>'}</div>`;
+ }).join('');
+}
+async function deleteWholeProduct(id,btn){
+ ensureDB();const p=prod(id);if(!p)return alert('Produto não encontrado.');
+ const ls=DB.lotes.filter(l=>l.produtoId===id);
+ if(ls.some(l=>Number(l.quantidade||0)>0))return alert('Este produto ainda possui estoque. Zere todos os lotes antes de excluí-lo.');
+ if(!confirm(`Excluir o produto "${p.nome}" inteiro?\n\nO código de barras e todos os lotes zerados deste produto serão removidos. O nome continuará no Catálogo.`))return;
+ return withBusy(btn,'Excluindo...',async()=>{const op=cloneDB(DB.produtos),ol=cloneDB(DB.lotes);DB.produtos=DB.produtos.filter(x=>x.id!==id);DB.lotes=DB.lotes.filter(x=>x.produtoId!==id);const ok=await saveDB();if(ok===false){DB.produtos=op;DB.lotes=ol;rebuildIndexes();render();return}render();toast('Produto e seus lotes zerados excluídos.')})
+}
+const CATALOG_PAGE_SIZE=100;
+let CATALOG_VISIBLE=CATALOG_PAGE_SIZE;
+const CATALOG_PICK_PAGE_SIZE=40;
+let CATALOG_PICK_VISIBLE=CATALOG_PICK_PAGE_SIZE;
+let CATALOG_PICK_QUERY='';
+let AUDIT_LOGS=[];
+function auditDate(s){try{return new Date(s).toLocaleString('pt-BR')}catch(e){return s||''}}
+function renderAudit(a){const box=$('auditList');if(!box)return;box.innerHTML=a.length?`<div class="scroll"><table><thead><tr><th>Data/hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th></tr></thead><tbody>${a.map(x=>`<tr><td>${esc(auditDate(x.data))}</td><td><b>${esc(x.usuarioNome||'Sistema')}</b><div class="mut">${esc(x.usuarioEmail||'')}</div></td><td><span class="pill gray">${esc(String(x.acao||'').replaceAll('_',' '))}</span></td><td>${esc(x.detalhes||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="mut">Nenhum registro de auditoria.</p>'}
+async function loadAudit(btn){return withBusy(btn,'Carregando...',async()=>{try{const r=await api('getAudit',{limite:1000});AUDIT_LOGS=r.logs||[];const q=$('auditSearch');if(q)q.disabled=false;renderAudit(AUDIT_LOGS);toast(`${AUDIT_LOGS.length} registro(s) de auditoria carregado(s).`)}catch(e){alert(e.message)}})}
+function filterAudit(){const q=normalizeName($('auditSearch')?.value||'');renderAudit(AUDIT_LOGS.filter(x=>normalizeName([x.usuarioNome,x.usuarioEmail,x.acao,x.detalhes].join(' ')).includes(q)))}
 function catalogList(a){return a.map(x=>{const u=DB.catalogoImagens?.[normalizeName(x)]||'';return `<div class="catalogItem"><div class="catalogItemMain">${imgTag(u,'catalogThumb',x)}<span class="catalogItemName">${esc(x)}</span></div><button class="danger catalogDelete" onclick="deleteCatalogName('${encodeURIComponent(x)}',this)">Excluir</button></div>`}).join('')||'<p class="mut">Catálogo vazio.</p>'}
-function filterCatalog(){let q=normalizeName($('catSearch').value);$('catList').innerHTML=catalogList(DB.catalogo.filter(x=>normalizeName(x).includes(q)).slice(0,200))}
-async function deleteCatalogName(encodedName,btn){
- const nome=decodeURIComponent(encodedName);
- if(!confirm(`Excluir "${nome}" do catálogo?\n\nProdutos e lotes já cadastrados com esse nome não serão excluídos.`))return;
- return withBusy(btn,'Excluindo...',async()=>{
-  const anterior=[...DB.catalogo];
-  DB.catalogo=DB.catalogo.filter(n=>normalizeName(n)!==normalizeName(nome));
-  DB.catalogoImagens=DB.catalogoImagens||{};delete DB.catalogoImagens[normalizeName(nome)];
-  const ok=await saveDB();
-  if(!ok){DB.catalogo=anterior;render();return}
-  toast('Nome excluído do catálogo.');
- });
+function filterCatalog(reset=false){
+ const input=$('catSearch'),box=$('catList');if(!box)return;
+ if(reset)CATALOG_VISIBLE=CATALOG_PAGE_SIZE;
+ const q=normalizeName(input?.value||'');
+ const all=DB.catalogo.filter(x=>normalizeName(x).includes(q));
+ const shown=all.slice(0,CATALOG_VISIBLE);
+ box.innerHTML=catalogList(shown);
+ if(all.length>shown.length){
+  box.insertAdjacentHTML('beforeend',`<div class="loadMoreWrap"><button type="button" class="secondary" onclick="showMoreCatalog()">Exibir mais <span class="mut">(${shown.length} de ${all.length})</span></button></div>`);
+ }
+}
+function showMoreCatalog(){
+ CATALOG_VISIBLE+=CATALOG_PAGE_SIZE;
+ filterCatalog(false);
 }
 async function readSheet(ev){
- let f=ev.target.files[0];if(!f)return;let buf=await f.arrayBuffer(),wb=XLSX.read(buf),ws=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+ let f=ev.target.files[0];if(!f)return;
+ await ensureXLSX();
+ const buf=await f.arrayBuffer(),wb=XLSX.read(buf),ws=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
  if(!rows.length)return alert('Planilha vazia.');let headers=rows[0].map((x,i)=>String(x||`Coluna ${i+1}`));
  window._sheetRows=rows;
  $('importArea').innerHTML=`<div class="field" style="margin-top:12px"><label>Coluna com o nome dos produtos</label><select id="nameColumn">${headers.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('')}</select></div><p class="mut">A linha 2 será ignorada. A imagem de cada produto será obtida da última célula preenchida da respectiva linha (ex.: coluna AB).</p><button class="primary" onclick="importNames(this)">Importar nomes e imagens</button>`;
 }
-async function importNames(btn){return withBusy(btn,'Importando...',async()=>{
- let i=+$('nameColumn').value,rows=window._sheetRows.slice(2),names=[],imgs={};
- rows.forEach(r=>{
-  const nome=upperProductName(r[i]);if(!nome)return;
-  names.push(nome);
-  let last='';
-  for(let c=r.length-1;c>=0;c--){if(String(r[c]??'').trim()){last=String(r[c]).trim();break}}
-  if(/^https?:\/\//i.test(last))imgs[normalizeName(nome)]=last;
- });
- DB.catalogo=mergeCatalogNames(DB.catalogo,names);DB.catalogoImagens=DB.catalogoImagens||{};
- Object.assign(DB.catalogoImagens,imgs);
- DB.produtos.forEach(p=>{const u=imgs[normalizeName(p.nome)];if(u&&!p.imagemArquivoId){p.imagemUrl=u;p.imagemOrigem='catalogo'}});
- await saveDB();toast(`${names.length} linha(s) processada(s).`);
-})}
+async function importNames(btn){
+ return withBusy(btn,'Importando...',async()=>{
+  try{
+   ensureDB();
+   if(!window._sheetRows||!Array.isArray(window._sheetRows))throw new Error('Selecione a planilha novamente.');
+   const sel=$('nameColumn');if(!sel)throw new Error('Selecione a coluna com o nome dos produtos.');
+   let i=+sel.value,rows=window._sheetRows.slice(2),names=[],imgs={};
+   rows.forEach(r=>{
+    const nome=upperProductName(r[i]);if(!nome)return;
+    names.push(nome);
+    let last='';
+    for(let c=r.length-1;c>=0;c--){if(String(r[c]??'').trim()){last=String(r[c]).trim();break}}
+    if(/^https?:\/\//i.test(last))imgs[normalizeName(nome)]=last;
+   });
+   if(!names.length)throw new Error('Nenhum nome de produto foi encontrado a partir da 3ª linha.');
+   DB.catalogo=mergeCatalogNames(DB.catalogo,names);
+   Object.assign(DB.catalogoImagens,imgs);
+   DB.produtos.forEach(p=>{const u=imgs[normalizeName(p.nome)];if(u&&!p.imagemArquivoId){p.imagemUrl=u;p.imagemOrigem='catalogo'}});
+   const ok=await saveDB();
+   if(ok!==false){render();toast(`${names.length} linha(s) processada(s).`)}
+  }catch(e){
+   console.error('Erro ao importar catálogo:',e);
+   alert('Não foi possível importar o catálogo: '+(e?.message||e));
+  }
+ })
+}
 function lookupCode(btn){let c=$('scanInput').value.trim();if(!c)return alert('Informe ou leia o código de barras.');if(!busy(btn,'Consultando...'))return;try{showCode(c)}finally{setTimeout(()=>free(btn),180)}}
 function scanInputKey(e){
  if(e.key!=='Enter')return;
@@ -312,30 +626,59 @@ function scanInputKey(e){
  const btn=e.currentTarget.closest('.card')?.querySelector('button.primary.bigscan');
  lookupCode(btn);
 }
-function showCode(c){
+function showCode(c,announce=true){
+ c=normalizeBarcode(c);
+ if(!c){alert('Código de barras inválido. Use somente 6 a 14 dígitos.');return}
+ CURRENT_SCAN_CODE=c;
  let p=DB.produtos.find(x=>x.codigoBarras===c);
  if(!p){$('scanResult').innerHTML=`<div class="card"><h3>Código ainda não cadastrado</h3><div class="code">${esc(c)}</div><p class="mut">Associe este código a um nome do catálogo ou cadastre um nome novo.</p><button class="primary" onclick="quickBusy(this,'Abrindo...');openNewProduct('${esc(c)}')">Cadastrar produto</button></div>`;return}
- let ls=DB.lotes.filter(l=>l.produtoId===p.id);
- let u=productImageUrl(p);$('scanResult').innerHTML=`<div class="card">${imgTag(u,'productImgLarge',p.nome)}<h3>${esc(p.nome)}</h3><div class="code mut">${esc(c)}</div><div class="row" style="margin:9px 0"><button class="secondary" onclick="openProductImage('${p.id}')">📷 ${u?'Alterar imagem':'Adicionar imagem'}</button></div>${ls.map(l=>lotCard(l)).join('')||'<p class="mut">Nenhuma validade cadastrada.</p>'}<button class="primary" onclick="quickBusy(this,'Abrindo...');openNewLot('${esc(c)}')">+ Adicionar nova validade</button></div>`;
+ let ls=LOTS_BY_PRODUCT.get(p.id)||[];
+ let u=productImageUrl(p);$('scanResult').innerHTML=`${announce?`<div class="scanOk">✓ Código reconhecido: ${esc(p.nome)}</div>`:''}<div class="card">${imgTag(u,'productImgLarge',p.nome)}<h3>${esc(p.nome)}</h3><div class="code mut">${esc(c)}</div><div class="row" style="margin:9px 0"><button class="secondary" onclick="openProductImage('${p.id}')">📷 ${u?'Alterar imagem':'Adicionar imagem'}</button></div>${ls.map(l=>lotCard(l)).join('')||'<p class="mut">Nenhuma validade cadastrada.</p>'}<button class="primary" onclick="quickBusy(this,'Abrindo...');openNewLot('${esc(c)}')">+ Adicionar nova validade</button></div>`;
 }
-function lotCard(l){return `<div class="lot"><div class="lothead"><div><b>${l.quantidade} unidade(s)</b><div>Validade: ${br(l.validade)} • aviso ${l.avisoDiasAntes} dia(s) antes</div><div>${pill(l.validade)}</div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');editLot('${l.id}')">Editar</button></div></div>`}
-function openNewProduct(code){
- $('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Associar código ao produto</h2><div class="field"><label>Código</label><input value="${esc(code)}" disabled></div>
- <div class="field"><label>Escolher nome do catálogo</label><input id="nameSearch" autocomplete="off" placeholder="Digite para pesquisar..." oninput="renderProductCatalogChoices(this.value)" onfocus="renderProductCatalogChoices(this.value)"><div id="productCatalogChoices" class="catalogPicker"></div></div>
+function lotCard(l){return `<div class="lot"><div class="lothead"><div><b>${l.quantidade} unidade(s)</b><div>Validade: ${br(l.validade)} • aviso ${l.avisoDiasAntes} dia(s) antes</div><div>${pill(l.validade)}</div></div><div class="row"><button class="warning" onclick="adjustLotQuantity('${l.id}',-1,this)" ${Number(l.quantidade||0)<=0?'disabled':''}>−1</button><button class="secondary" onclick="adjustLotQuantity('${l.id}',1,this)">+1</button><button class="secondary" onclick="quickBusy(this,'Abrindo...');editLot('${l.id}')">Editar</button>${Number(l.quantidade||0)<=0?`<button class="danger" onclick="deleteZeroLot('${l.id}',this)">Excluir lote</button>`:''}</div></div></div>`}
+
+async function adjustLotQuantity(id,delta,btn){
+ if(!Number.isInteger(delta)||delta===0)return;
+ return withBusy(btn,delta<0?'Baixando...':'Adicionando...',async()=>{
+  try{
+   const r=await api('adjustLotQuantity',{loteId:id,delta:delta});
+   acceptServerDB(r.data);
+   render();
+   toast(delta<0?'1 unidade baixada.':'1 unidade adicionada.');
+  }catch(e){
+   alert(e.message);
+  }
+ });
+}
+function openNewProduct(code){code=normalizeBarcode(code);if(!code)return alert('Código de barras inválido.');
+ $('modal').innerHTML=`<div class="modal" role="presentation"><div class="dialog" role="dialog" aria-modal="true" tabindex="-1"><h2>Associar código ao produto</h2><div class="field"><label>Código</label><input value="${esc(code)}" disabled></div>
+ <div class="field"><label>Escolher nome do catálogo</label><input id="nameSearch" autocomplete="off" placeholder="Digite para pesquisar..." oninput="debouncedCatalogChoices(this.value)" onfocus="renderProductCatalogChoices(this.value)"><div id="productCatalogChoices" class="catalogPicker"></div></div>
  <div class="mut">Toque em um produto da lista. Se o nome não existir, basta digitar um novo nome.</div>
  <div class="field" style="margin-top:12px"><label>Imagem do produto (opcional)</label><input id="newProductImage" type="file" accept="image/*" capture="environment" onchange="previewChosenImage(this,'newImagePreview')"><img id="newImagePreview" class="imagePreview hide" alt="Prévia"></div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveNewProduct('${esc(code)}',this)">Continuar</button></div></div></div>`;
  renderProductCatalogChoices('');
 }
-function renderProductCatalogChoices(q=''){
+function renderProductCatalogChoices(q='',reset=true){
  const box=$('productCatalogChoices');if(!box)return;
  const nq=normalizeName(q);
- const items=DB.catalogo.filter(n=>!nq||normalizeName(n).includes(nq)).slice(0,80);
+ if(reset||nq!==CATALOG_PICK_QUERY){
+  CATALOG_PICK_QUERY=nq;
+  CATALOG_PICK_VISIBLE=CATALOG_PICK_PAGE_SIZE;
+ }
+ const all=DB.catalogo.filter(n=>!nq||normalizeName(n).includes(nq));
+ const items=all.slice(0,CATALOG_PICK_VISIBLE);
  if(!items.length){box.innerHTML='<div class="catalogPickEmpty">Nenhum produto encontrado. Você pode cadastrar este nome como novo.</div>';return}
  box.innerHTML=items.map(n=>{
   const url=DB.catalogoImagens?.[normalizeName(n)]||'';
   const visual=url?`<img src="${esc(url)}" alt="" loading="lazy" onerror="this.outerHTML='<span class=&quot;catalogPickNoImg&quot;>▧</span>'">`:`<span class="catalogPickNoImg">▧</span>`;
   return `<button type="button" class="catalogPickItem" onclick="chooseCatalogProduct('${encodeURIComponent(n)}')">${visual}<span class="catalogPickName">${esc(n)}</span></button>`;
  }).join('');
+ if(all.length>items.length){
+  box.insertAdjacentHTML('beforeend',`<div class="loadMoreWrap catalogPickMore"><button type="button" class="secondary" onclick="showMoreProductCatalogChoices()">Exibir mais <span class="mut">(${items.length} de ${all.length})</span></button></div>`);
+ }
+}
+function showMoreProductCatalogChoices(){
+ CATALOG_PICK_VISIBLE+=CATALOG_PICK_PAGE_SIZE;
+ renderProductCatalogChoices(CATALOG_PICK_QUERY,false);
 }
 function chooseCatalogProduct(encodedName){
  const nome=decodeURIComponent(encodedName),input=$('nameSearch');if(!input)return;
@@ -347,34 +690,195 @@ function chooseCatalogProduct(encodedName){
 }
 
 async function saveNewProduct(code,btn){
- let nome=upperProductName($('nameSearch').value);if(!nome)return alert('Informe o nome.');
+ code=normalizeBarcode(code);
+ if(!code)return alert('Código de barras inválido. Use somente 6 a 14 dígitos.');
+ if(DB.produtos.some(x=>normalizeBarcode(x.codigoBarras)===code))return alert('Este código de barras já está cadastrado.');
+ let nome=upperProductName($('nameSearch').value);
+ if(!nome)return alert('Informe o nome.');
+
  return withBusy(btn,'Salvando...',async()=>{
-  let existente=DB.catalogo.find(n=>normalizeName(n)===normalizeName(nome));if(existente)nome=upperProductName(existente);else DB.catalogo=mergeCatalogNames(DB.catalogo,[nome]);
-  let p={id:crypto.randomUUID(),codigoBarras:code,nome};
-  const catImg=DB.catalogoImagens?.[normalizeName(nome)];if(catImg){p.imagemUrl=catImg;p.imagemOrigem='catalogo'}
-  const file=$('newProductImage')?.files?.[0];
-  if(file){const up=await uploadProductImageFile(file,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive';DB.catalogoImagens=DB.catalogoImagens||{};DB.catalogoImagens[normalizeName(p.nome)]=up.url}
-  DB.produtos.push(p);let ok=await saveDB();if(ok!==false){closeModal();openLotForm(p)}
- })}
+  const snapshot=cloneDB(DB);
+  try{
+   let existente=DB.catalogo.find(n=>normalizeName(n)===normalizeName(nome));
+   if(existente)nome=upperProductName(existente);
+   else DB.catalogo=mergeCatalogNames(DB.catalogo,[nome]);
+
+   let p={id:newId(),codigoBarras:code,nome};
+   const catImg=DB.catalogoImagens?.[normalizeName(nome)];
+   if(catImg){
+    p.imagemUrl=catImg;
+    p.imagemOrigem='catalogo';
+   }
+
+   const file=$('newProductImage')?.files?.[0];
+   if(file){
+    const up=await uploadProductImageFile(file,p.id,p.nome);
+    p.imagemUrl=up.url;
+    p.imagemArquivoId=up.fileId;
+    p.imagemOrigem='drive';
+    DB.catalogoImagens=DB.catalogoImagens||{};
+    DB.catalogoImagens[normalizeName(p.nome)]=up.url;
+   }
+
+   DB.produtos.push(p);
+   rebuildIndexes();
+
+   const ok=await saveDB();
+   if(!ok){
+    DB=snapshot;
+    ensureDB();
+    rebuildIndexes();
+    render();
+    return;
+   }
+
+   closeModal();
+   openLotForm(p);
+  }catch(e){
+   DB=snapshot;
+   ensureDB();
+   rebuildIndexes();
+   render();
+   alert('Não foi possível cadastrar o produto: '+e.message);
+  }
+ });
+}
 
 function previewChosenImage(input,id){const f=input.files?.[0],im=$(id);if(!f||!im)return;im.src=URL.createObjectURL(f);im.classList.remove('hide')}
 function fileToCompressedData(file){
  return new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{try{const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale)),cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);resolve(cv.toDataURL('image/jpeg',.82))}catch(e){reject(e)}};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Não foi possível ler a imagem.'))};img.src=url})
 }
 async function uploadProductImageFile(file,produtoId,nome){if(!file.type.startsWith('image/'))throw new Error('Selecione um arquivo de imagem.');const dataUrl=await fileToCompressedData(file);const r=await api('uploadProductImage',{produtoId,nome,dataUrl});return r.image}
-function openProductImage(pid){const p=prod(pid),u=productImageUrl(p);$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Imagem do produto</h2><p><b>${esc(p.nome)}</b></p>${imgTag(u,'productImgLarge',p.nome)}<div class="field"><label>Tirar foto ou escolher imagem</label><input id="productImageFile" type="file" accept="image/*" capture="environment" onchange="previewChosenImage(this,'productImagePreview')"><img id="productImagePreview" class="imagePreview hide" alt="Prévia"></div><p class="mut">A imagem será reduzida e salva na subpasta “Imagens Produtos” do Google Drive.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveProductImage('${pid}',this)">Salvar imagem</button></div></div></div>`}
-async function saveProductImage(pid,btn){const f=$('productImageFile')?.files?.[0];if(!f)return alert('Tire uma foto ou escolha uma imagem.');return withBusy(btn,'Enviando...',async()=>{try{const p=prod(pid),up=await uploadProductImageFile(f,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive';DB.catalogoImagens=DB.catalogoImagens||{};DB.catalogoImagens[normalizeName(p.nome)]=up.url;const ok=await saveDB();if(ok){closeModal();render();toast('Imagem do produto salva.')}}catch(e){alert(e.message)}})}
+function openProductImage(pid){const p=prod(pid),u=productImageUrl(p);$('modal').innerHTML=`<div class="modal" role="presentation"><div class="dialog" role="dialog" aria-modal="true" tabindex="-1"><h2>Imagem do produto</h2><p><b>${esc(p.nome)}</b></p>${imgTag(u,'productImgLarge',p.nome)}<div class="field"><label>Tirar foto ou escolher imagem</label><input id="productImageFile" type="file" accept="image/*" capture="environment" onchange="previewChosenImage(this,'productImagePreview')"><img id="productImagePreview" class="imagePreview hide" alt="Prévia"></div><p class="mut">A imagem será reduzida e salva na subpasta “Imagens Produtos” do Google Drive.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveProductImage('${pid}',this)">Salvar imagem</button></div></div></div>`}
+async function saveProductImage(pid,btn){
+ const snapshot=cloneDB(DB);const f=$('productImageFile')?.files?.[0];if(!f)return alert('Tire uma foto ou escolha uma imagem.');return withBusy(btn,'Enviando...',async()=>{try{const p=prod(pid),up=await uploadProductImageFile(f,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive';DB.catalogoImagens=DB.catalogoImagens||{};DB.catalogoImagens[normalizeName(p.nome)]=up.url;const ok=await saveDB();if(ok){closeModal();render();toast('Imagem do produto salva.')}else{DB=snapshot;ensureDB();rebuildIndexes();render();}}catch(e){DB=snapshot;ensureDB();rebuildIndexes();render();alert(e.message)}})}
 
-function openNewLot(code){let p=DB.produtos.find(x=>x.codigoBarras===code);openLotForm(p)}
+function openNewLot(code){code=normalizeBarcode(code);if(!code)return alert('Código de barras inválido.');let p=DB.produtos.find(x=>normalizeBarcode(x.codigoBarras)===code);openLotForm(p)}
 function openLotForm(p){
- $('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Nova validade</h2><p><b>${esc(p.nome)}</b><br><span class="code mut">${esc(p.codigoBarras)}</span></p>
+ $('modal').innerHTML=`<div class="modal" role="presentation"><div class="dialog" role="dialog" aria-modal="true" tabindex="-1"><h2>Nova validade</h2><p><b>${esc(p.nome)}</b><br><span class="code mut">${esc(p.codigoBarras)}</span></p>
  <div class="formgrid"><div class="field"><label>Quantidade</label><input id="lq" type="number" min="0" value="1"></div><div class="field"><label>Validade</label><input id="lv" type="date"></div><div class="field"><label>Avisar quantos dias antes?</label><input id="la" type="number" min="0" value="${DB.config?.avisoPadraoDias??7}"></div><div class="field"><label>Lote (opcional)</label><input id="ll" placeholder="Identificação do lote"></div></div>
  <div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveLot('${p.id}',this)">Salvar</button></div></div></div>`;
 }
-async function saveLot(pid,btn){if(!$('lv').value)return alert('Informe a validade.');return withBusy(btn,'Salvando...',async()=>{DB.lotes.push({id:crypto.randomUUID(),produtoId:pid,quantidade:+$('lq').value||0,validade:$('lv').value,avisoDiasAntes:+$('la').value||0,lote:$('ll').value.trim(),notificacoes:[]});let ok=await saveDB();if(ok){closeModal();go('scanner')}})}
-function editLot(id){let l=DB.lotes.find(x=>x.id===id),p=prod(l.produtoId);$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Editar lote</h2><p><b>${esc(p.nome)}</b></p><div class="formgrid"><div class="field"><label>Quantidade</label><input id="eq" type="number" min="0" value="${l.quantidade}"></div><div class="field"><label>Validade</label><input id="ev" type="date" value="${l.validade}"></div><div class="field"><label>Aviso (dias antes)</label><input id="ea" type="number" min="0" value="${l.avisoDiasAntes}"></div><div class="field"><label>Lote</label><input id="el" value="${esc(l.lote||'')}"></div></div><div class="row"><button class="warning" onclick="$('eq').value=Math.max(0,+$('eq').value-1)">−1</button><button class="secondary" onclick="$('eq').value=+$('eq').value+1">+1</button><button class="danger" onclick="$('eq').value=0">Zerar</button></div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="updateLot('${id}',this)">Salvar alterações</button></div></div></div>`}
-async function updateLot(id,btn){return withBusy(btn,'Salvando...',async()=>{let l=DB.lotes.find(x=>x.id===id);l.quantidade=Math.max(0,+$('eq').value||0);l.validade=$('ev').value;l.avisoDiasAntes=Math.max(0,+$('ea').value||0);l.lote=$('el').value.trim();l.notificacoes=[];let ok=await saveDB();if(ok)closeModal()})}
-function closeModal(){$('modal').innerHTML=''}
+
+function confirmPastExpiry(value){
+ if(!value)return true;
+ const hoje=new Date();hoje.setHours(0,0,0,0);
+ const d=new Date(value+'T00:00:00');
+ if(Number.isNaN(d.getTime())||d>=hoje)return true;
+ return confirm('A validade informada já venceu. Deseja salvar este lote mesmo assim?');
+}
+
+async function saveLot(pid,btn){
+ if(!$('lv').value)return alert('Informe a validade.');
+ if(!confirmPastExpiry($('lv').value))return;
+ const qtd=Math.max(0,Number($('lq').value)||0);
+ const aviso=Math.max(0,Number($('la').value)||0);
+
+ return withBusy(btn,'Salvando...',async()=>{
+  const oldLotes=cloneDB(DB.lotes);
+  DB.lotes.push({
+   id:newId(),
+   produtoId:pid,
+   quantidade:qtd,
+   validade:$('lv').value,
+   avisoDiasAntes:aviso,
+   lote:$('ll').value.trim(),
+   notificacoes:[]
+  });
+  rebuildIndexes();
+
+  const ok=await saveDB();
+  if(!ok){
+   DB.lotes=oldLotes;
+   rebuildIndexes();
+   render();
+   return;
+  }
+
+  closeModal();
+  go('scanner');
+ });
+}
+function editLot(id){let l=DB.lotes.find(x=>x.id===id),p=prod(l.produtoId);$('modal').innerHTML=`<div class="modal" role="presentation"><div class="dialog" role="dialog" aria-modal="true" tabindex="-1" data-original-qty="${Number(l.quantidade||0)}"><h2>Editar lote</h2><p><b>${esc(p.nome)}</b></p><div class="formgrid"><div class="field"><label>Quantidade</label><input id="eq" type="number" min="0" value="${l.quantidade}"></div><div class="field"><label>Validade</label><input id="ev" type="date" value="${l.validade}"></div><div class="field"><label>Aviso (dias antes)</label><input id="ea" type="number" min="0" value="${l.avisoDiasAntes}"></div><div class="field"><label>Lote</label><input id="el" value="${esc(l.lote||'')}"></div></div><div class="row"><button class="warning" onclick="$('eq').value=Math.max(0,+$('eq').value-1)">−1</button><button class="secondary" onclick="$('eq').value=+$('eq').value+1">+1</button><button class="danger" onclick="$('eq').value=0">Zerar</button></div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="updateLot('${id}',this)">Salvar alterações</button></div></div></div>`}
+async function updateLot(id,btn){
+ if(!confirmPastExpiry($('ev').value))return;
+ return withBusy(btn,'Salvando...',async()=>{
+  const snapshot=cloneDB(DB);
+  const original=DB.lotes.find(x=>x.id===id);
+  if(!original)return alert('Lote não encontrado.');
+
+  const novaQtd=Math.max(0,Number($('eq').value)||0);
+  const dialog=$('eq')?.closest('.dialog');
+  const qtdEsperada=Number(dialog?.dataset?.originalQty ?? original.quantidade ?? 0);
+
+  try{
+   // Se a quantidade foi editada manualmente, o servidor só aceita se ninguém
+   // tiver alterado este mesmo lote desde que o modal foi aberto.
+   if(novaQtd!==qtdEsperada){
+    const rq=await api('setLotQuantity',{
+     loteId:id,
+     quantidade:novaQtd,
+     quantidadeEsperada:qtdEsperada
+    });
+    acceptServerDB(rq.data);
+   }
+
+   // A partir daqui trabalhamos sobre a versão mais recente devolvida pelo servidor.
+   const l=DB.lotes.find(x=>x.id===id);
+   if(!l)throw new Error('Lote não encontrado após atualização.');
+
+   l.validade=$('ev').value;
+   l.avisoDiasAntes=Math.max(0,Number($('ea').value)||0);
+   l.lote=$('el').value.trim();
+   l.notificacoes=[];
+   rebuildIndexes();
+
+   const ok=await saveDB();
+   if(!ok){
+    // Não revertemos uma quantidade atômica já confirmada no servidor.
+    // Recarregamos a cópia do servidor para evitar mostrar estado incorreto.
+    try{
+     const fresh=await api('getDatabase');
+     acceptServerDB(fresh.data);
+    }catch(_){
+     DB=snapshot;ensureDB();rebuildIndexes();
+    }
+    render();
+    return;
+   }
+
+   closeModal();
+  }catch(e){
+   if(String(e.message||'').startsWith('CONFLITO_ESTOQUE|')){
+    const atual=String(e.message).split('|')[1];
+    try{
+     const fresh=await api('getDatabase');
+     acceptServerDB(fresh.data);
+     render();
+    }catch(_){}
+    alert('A quantidade deste lote foi alterada em outro aparelho e agora é '+atual+'. Abra o lote novamente antes de salvar.');
+    closeModal();
+    return;
+   }
+   alert(e.message);
+  }
+ });
+}
+
+function prepareModalAccessibility(){
+ const overlay=$('modal')?.querySelector('.modal');
+ const dialog=overlay?.querySelector('.dialog');
+ if(!overlay||!dialog)return;
+ overlay.onclick=e=>{if(e.target===overlay)closeModal()};
+ setTimeout(()=>dialog.focus(),0);
+}
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&$('modal')?.innerHTML?.trim())closeModal();
+});
+
+const modalObserver=new MutationObserver(()=>prepareModalAccessibility());
+if($('modal'))modalObserver.observe($('modal'),{childList:true});
+function closeModal(){if(window._stream)releaseCamera();$('modal').innerHTML=''}
 async function saveConfig(btn){return withBusy(btn,'Salvando...',async()=>{DB.config=DB.config||{};DB.config.avisoPadraoDias=Math.max(0,+$('defaultDays').value||0);await saveDB()})}
 async function cameraScan(btn){
  if(!busy(btn,'Abrindo câmera...'))return;
@@ -479,13 +983,12 @@ async function setCameraZoom(value){
   if($('zoomValue'))$('zoomValue').textContent=z.toFixed(1).replace('.0','')+'×';
  }catch(e){}
 }
-function stopCam(){
- clearInterval(window._camTimer);
- window._camTimer=null;
- window._stream?.getTracks().forEach(t=>t.stop());
+function releaseCamera(){
+ clearInterval(window._camTimer);window._camTimer=null;
+ try{window._stream?.getTracks().forEach(t=>t.stop())}catch(_){}
  window._stream=null;window._camTrack=null;window._torchOn=false;
- closeModal();
 }
+function stopCam(){releaseCamera();closeModal()}
 function scrollToTop(){window.scrollTo({top:0,behavior:'smooth'})}
 function updateBackTop(){
  const b=$('backTop');if(!b)return;
@@ -494,10 +997,23 @@ function updateBackTop(){
 }
 window.addEventListener('scroll',updateBackTop,{passive:true});
 window.addEventListener('resize',updateBackTop);
-function pageTitle(id){return ({painel:'Painel',scanner:'Escanear produto',produtos:'Produtos',catalogo:'Catálogo',config:'Configurações',usuarios:'Usuários'})[id]||'ValidaFácil'}
+function pageTitle(id){return ({painel:'Painel',scanner:'Escanear produto',produtos:'Produtos',catalogo:'Catálogo',config:'Configurações',auditoria:'Auditoria',usuarios:'Usuários'})[id]||'ValidaFácil'}
 function toggleMenu(){document.body.classList.toggle('menuOpen')}
 function closeMenu(){document.body.classList.remove('menuOpen')}
-function go(id){document.querySelectorAll('section').forEach(s=>s.classList.add('hide'));$(id).classList.remove('hide');document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===id));let mt=$('mobileTitle');if(mt)mt.textContent=pageTitle(id);if(window.innerWidth<=760)closeMenu();window.scrollTo({top:0});setTimeout(updateBackTop,0)}
+function go(id){
+ if(ACTIVE_PAGE==='scanner'&&id!=='scanner'){try{releaseCamera()}catch(_){}}
+ if((id==='auditoria'||id==='usuarios')&&AUTH.user?.perfil!=='admin')id='painel';
+ ACTIVE_PAGE=id;
+ localStorage.setItem('validafacil_last_page',id);
+ renderPage(id);
+ document.querySelectorAll('section').forEach(s=>s.classList.toggle('hide',s.id!==id));
+ document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===id));
+ let mt=$('mobileTitle');if(mt)mt.textContent=pageTitle(id);
+ if(window.innerWidth<=760)closeMenu();
+ window.scrollTo({top:0});
+ if(id==='scanner')setTimeout(()=>$('scanInput')?.focus(),80);
+ setTimeout(updateBackTop,0);
+}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>go(b.dataset.p));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
 
@@ -505,16 +1021,98 @@ function showAuthLogin(msg=''){
  $('authScreen').classList.remove('hide');
  $('authContent').innerHTML=`${msg?`<p class="mut" style="text-align:center">${esc(msg)}</p>`:''}<div class="field"><label>E-mail</label><input id="loginEmail" type="email" autocomplete="username" enterkeyhint="next"></div><div class="field"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login(document.getElementById('loginBtn'))"></div><button id="loginBtn" class="primary bigscan" onclick="login(this)">Entrar</button><div class="authLinks"><button class="linkBtn" onclick="showForgot()">Esqueci minha senha</button></div>`;
 }
-async function login(btn){const email=$('loginEmail').value.trim(),senha=$('loginPass').value;if(!email||!senha)return alert('Informe e-mail e senha.');return withBusy(btn,'Entrando...',async()=>{try{const r=await api('login',{email,senha});AUTH.token=r.token;AUTH.user=r.user;localStorage.setItem('validafacil_token',AUTH.token);$('authScreen').classList.add('hide');showAppLoading('Carregando produtos, catálogo e validades...');try{await sync();startAutoSync()}finally{hideAppLoading()}}catch(e){hideAppLoading();alert(e.message)}})}
-function forceLogout(){hideAppLoading();stopAutoSync();AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin('Sua sessão terminou. Entre novamente.')}
-async function logout(){hideAppLoading();stopAutoSync();try{if(AUTH.token)await api('logout')}catch(e){}AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};showAuthLogin()}
+async function login(btn){
+ const email=$('loginEmail').value.trim();
+ const senha=$('loginPass').value;
+
+ if(!email||!senha){
+  return alert('Informe e-mail e senha.');
+ }
+
+ return withBusy(btn,'Entrando...',async()=>{
+  try{
+   const r=await api('login',{email,senha});
+
+   AUTH.token=r.token;
+   AUTH.user=r.user;
+   localStorage.setItem('validafacil_token',AUTH.token);
+
+   // O backend já devolve o banco público junto com o login.
+   // Assim evitamos uma segunda chamada imediata a getDatabase.
+   if(!r.data||typeof r.data!=='object'){
+    throw new Error('O login foi aceito, mas o servidor não retornou os dados do sistema.');
+   }
+
+   acceptServerDB(r.data);
+   render();
+
+   $('authScreen').classList.add('hide');
+   if(ACTIVE_PAGE==='scanner')setTimeout(()=>$('scanInput')?.focus(),80);
+  }catch(e){
+   AUTH={token:'',user:null};
+   localStorage.removeItem('validafacil_token');
+   showAuthLogin();
+   alert('Não foi possível entrar/carregar os dados: '+e.message);
+  }
+ })
+}
+function forceLogout(){stopAutoSync();AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin('Sua sessão terminou. Entre novamente.')}
+async function logout(btn){
+ if(btn&&!busy(btn,'Saindo...'))return;
+ 
+ stopAutoSync();
+ const tokenAtual=AUTH.token;
+ try{
+  if(tokenAtual){
+   // Aguarda o servidor, mas não deixa a interface presa indefinidamente.
+   await Promise.race([
+    api('logout'),
+    new Promise(resolve=>setTimeout(resolve,3000))
+   ]);
+  }
+ }catch(e){
+  // Mesmo sem resposta do servidor, encerra a sessão local.
+ }finally{
+  AUTH={token:'',user:null};
+  localStorage.removeItem('validafacil_token');
+  DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};
+  BASE_DB=null;
+  showAuthLogin();
+ }
+}
 function showForgot(){$('authContent').innerHTML=`<h3>Redefinir senha</h3><p class="mut">Informe o e-mail cadastrado. Enviaremos um código de verificação válido por 15 minutos.</p><div class="field"><label>E-mail</label><input id="forgotEmail" type="email"></div><button class="primary bigscan" onclick="requestReset(this)">Enviar código</button><div class="authLinks"><button class="linkBtn" onclick="showAuthLogin()">Voltar ao login</button></div>`}
 async function requestReset(btn){const email=$('forgotEmail').value.trim();if(!email)return alert('Informe o e-mail.');return withBusy(btn,'Enviando...',async()=>{try{await api('requestPasswordReset',{email});showReset(email)}catch(e){alert(e.message)}})}
 function showReset(email){$('authContent').innerHTML=`<h3>Criar nova senha</h3><p class="mut">Digite o código enviado para <b>${esc(email)}</b>.</p><div class="field"><label>Código</label><input id="resetCode" inputmode="numeric" autocomplete="one-time-code"></div><div class="field"><label>Nova senha</label><input id="resetPass" type="password" minlength="6"></div><div class="field"><label>Confirmar nova senha</label><input id="resetPass2" type="password" minlength="6"></div><button class="primary bigscan" onclick="confirmReset('${esc(email)}',this)">Alterar senha</button><div class="authLinks"><button class="linkBtn" onclick="showAuthLogin()">Voltar ao login</button></div>`}
 async function confirmReset(email,btn){const codigo=$('resetCode').value.trim(),senha=$('resetPass').value,senha2=$('resetPass2').value;if(senha!==senha2)return alert('As senhas não coincidem.');if(senha.length<6)return alert('A senha deve ter pelo menos 6 caracteres.');return withBusy(btn,'Alterando...',async()=>{try{await api('confirmPasswordReset',{email,codigo,novaSenha:senha});showAuthLogin('Senha alterada com sucesso.')}catch(e){alert(e.message)}})}
-async function restoreSession(){if(!AUTH.token){hideAppLoading();showAuthLogin();return}showAppLoading('Restaurando sua sessão e carregando os dados...');try{const r=await api('session');AUTH.user=r.user;$('authScreen').classList.add('hide');await sync();startAutoSync();hideAppLoading()}catch(e){hideAppLoading();AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin();alert('Não foi possível carregar os dados: '+e.message)}}
+async function restoreSession(){
+ if(!AUTH.token){
+  showAuthLogin();
+  return;
+ }
+
+ showAuthLogin('Restaurando sessão...');
+
+ try{
+  const r=await api('session');
+  AUTH.user=r.user;
+
+  if(!r.data||typeof r.data!=='object'){
+   // Compatibilidade temporária caso uma implantação antiga ainda esteja ativa.
+   await loadApplicationData();
+  }else{
+   acceptServerDB(r.data);
+   render();
+  }
+
+  $('authScreen').classList.add('hide');
+ }catch(e){
+  AUTH={token:'',user:null};
+  localStorage.removeItem('validafacil_token');
+  showAuthLogin();
+ }
+}
 async function loadUsers(){if(AUTH.user?.perfil!=='admin')return;try{const r=await api('listUsers');const box=$('usersList');if(!box)return;box.innerHTML=r.users.map(u=>`<div class="userItem"><div class="userMeta"><b>${esc(u.nome)}</b><span>${esc(u.email)}</span><span class="roleBadge">${u.perfil==='admin'?'Administrador':'Usuário'}${u.ativo?'':' • Inativo'}</span></div><div class="row">${u.id!==AUTH.user.id?`<button class="${u.ativo?'warning':'secondary'}" onclick="toggleUser('${u.id}',${!u.ativo},this)">${u.ativo?'Inativar':'Reativar'}</button><button class="danger" onclick="deleteUser('${u.id}','${encodeURIComponent(u.nome)}',this)">Excluir</button>`:''}<button class="secondary" onclick="adminReset('${u.id}',this)">Enviar redefinição</button></div></div>`).join('')||'<p class="mut">Nenhum usuário.</p>'}catch(e){if($('usersList'))$('usersList').innerHTML=`<p class="mut">${esc(e.message)}</p>`}}
-function openNewUser(){$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Adicionar usuário</h2><div class="field"><label>Nome</label><input id="un"></div><div class="field"><label>E-mail</label><input id="ue" type="email"></div><div class="field"><label>Perfil</label><select id="up"><option value="user">Usuário</option><option value="admin">Administrador</option></select></div><p class="mut">O usuário receberá por e-mail um código para criar a própria senha.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="createUser(this)">Cadastrar</button></div></div></div>`}
+function openNewUser(){$('modal').innerHTML=`<div class="modal" role="presentation"><div class="dialog" role="dialog" aria-modal="true" tabindex="-1"><h2>Adicionar usuário</h2><div class="field"><label>Nome</label><input id="un"></div><div class="field"><label>E-mail</label><input id="ue" type="email"></div><div class="field"><label>Perfil</label><select id="up"><option value="user">Usuário</option><option value="admin">Administrador</option></select></div><p class="mut">O usuário receberá por e-mail um código para criar a própria senha.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="createUser(this)">Cadastrar</button></div></div></div>`}
 async function createUser(btn){const nome=$('un').value.trim(),email=$('ue').value.trim(),perfil=$('up').value;if(!nome||!email)return alert('Informe nome e e-mail.');return withBusy(btn,'Cadastrando...',async()=>{try{await api('createUser',{nome,email,perfil});closeModal();await loadUsers();toast('Usuário cadastrado e convite enviado.')}catch(e){alert(e.message)}})}
 async function toggleUser(id,ativo,btn){return withBusy(btn,ativo?'Reativando...':'Inativando...',async()=>{try{await api('setUserActive',{id,ativo});await loadUsers()}catch(e){alert(e.message)}})}
 async function deleteUser(id,nomeEnc,btn){
