@@ -74,8 +74,9 @@ header{margin-left:230px;transition:margin-left .25s ease}
  header>div:first-of-type{display:none}
  .mobileTitle{display:block;flex:1;min-width:0;font-weight:800;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .menuBtn{display:inline-flex;align-items:center;justify-content:center;min-width:42px;min-height:42px}
- header .secondary{padding:10px 11px;min-height:42px;font-size:0}
- header .secondary::after{content:'↻';font-size:20px}
+ header .syncBtn{padding:10px 11px;min-height:42px;font-size:0}
+ header .syncBtn::after{content:'↻';font-size:20px}
+ header .logoutBtn{padding:10px 12px;min-height:42px;font-size:13px;background:#ffffff16;color:#fff;border:1px solid #ffffff22}
  .wrap{margin-left:0;padding:12px 10px 80px}
  .sidebar{transform:translateX(-105%);transition:transform .25s ease;width:min(82vw,290px);box-shadow:5px 0 25px #0005}
  body.menuOpen .sidebar{transform:translateX(0)}
@@ -138,7 +139,7 @@ header{margin-left:230px;transition:margin-left .25s ease}
  <button class="menuBtn" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
  <div><b>✓ ValidaFácil</b><small>Validades e alertas</small></div>
  <div class="mobileTitle" id="mobileTitle">Painel</div>
- <div class="userBar"><span class="userText" id="headerUser"></span><button class="secondary" onclick="sync(this)">↻ Sincronizar</button><button class="secondary" onclick="logout()">Sair</button></div>
+ <div class="userBar"><span class="userText" id="headerUser"></span><button class="secondary syncBtn" onclick="sync(this)">↻ Sincronizar</button><button class="secondary logoutBtn" onclick="logout()">Sair</button></div>
 </header>
 <div class="wrap">
 <section id="painel"></section><section id="scanner" class="hide"></section><section id="produtos" class="hide"></section><section id="catalogo" class="hide"></section><section id="config" class="hide"></section><section id="usuarios" class="hide"></section>
