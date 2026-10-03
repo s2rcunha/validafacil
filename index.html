@@ -26,6 +26,30 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 8px
 .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.lot{border:1px solid var(--bd);border-radius:12px;padding:13px;margin:10px 0}.lothead{display:flex;justify-content:space-between;gap:10px}.bigscan{padding:16px;font-size:17px;width:100%}
 .toast{position:fixed;right:18px;bottom:18px;background:#17201b;color:white;padding:12px 15px;border-radius:10px;z-index:200;max-width:350px}
 .catalogItem{padding:9px 0;border-bottom:1px solid #edf1ee;display:flex;align-items:center;justify-content:space-between;gap:10px}.catalogItemName{min-width:0;overflow-wrap:anywhere}.catalogDelete{flex:0 0 auto}.code{font-family:ui-monospace,Consolas,monospace}
+/* Leitor de código de barras */
+.scanDialog{width:min(760px,100%);background:#111;color:#fff;padding:14px}
+.scanDialog h2{margin:2px 0 5px}.scanHint{color:#d1d5db;font-size:13px;margin:0 0 12px}
+.cameraStage{position:relative;background:#000;border-radius:14px;overflow:hidden;min-height:280px;display:grid;place-items:center}
+.cameraStage video{display:block;width:100%;max-height:68vh;object-fit:cover}
+.scanFrame{position:absolute;left:8%;right:8%;top:50%;height:31%;transform:translateY(-50%);border:2px solid #4ade80;border-radius:14px;box-shadow:0 0 0 9999px #0004;pointer-events:none}
+.scanFrame:before,.scanFrame:after{content:'';position:absolute;left:8%;right:8%;height:2px;background:#86efac;box-shadow:0 0 8px #22c55e}
+.scanFrame:before{top:50%}.scanFrame:after{display:none}
+.cameraControls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.cameraControls button{flex:1 1 130px}
+.cameraControls .camOn{background:#fef3c7;color:#92400e}
+.zoomControl{display:flex;align-items:center;gap:9px;flex:2 1 220px;background:#ffffff12;border-radius:10px;padding:8px 10px}
+.zoomControl input{min-height:auto;padding:0}
+.zoomControl span{white-space:nowrap;font-size:12px}
+.camStatus{font-size:12px;color:#bbf7d0;margin-top:8px;min-height:18px}
+@media(max-width:760px){
+ .modal.cameraModal{padding:0}
+ .scanDialog{width:100%;height:100%;max-height:none;border-radius:0;padding:12px;display:flex;flex-direction:column}
+ .cameraStage{flex:1;min-height:0}
+ .cameraStage video{height:100%;max-height:none}
+ .scanFrame{left:6%;right:6%;height:24%}
+ .cameraControls{margin-top:9px}
+ .cameraControls button{min-height:46px}
+}
 /* Voltar ao topo */
 .backTop{position:fixed;right:20px;bottom:22px;z-index:50;width:46px;height:46px;min-height:46px;padding:0;border-radius:50%;background:#166534;color:#fff;box-shadow:0 5px 18px #0003;display:flex;align-items:center;justify-content:center;font-size:22px;opacity:0;visibility:hidden;transform:translateY(12px);pointer-events:none;transition:opacity .2s,transform .2s,visibility .2s}
 .backTop.show{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto}
@@ -218,11 +242,114 @@ function closeModal(){$('modal').innerHTML=''}
 async function saveConfig(btn){return withBusy(btn,'Salvando...',async()=>{DB.config=DB.config||{};DB.config.avisoPadraoDias=Math.max(0,+$('defaultDays').value||0);await saveDB()})}
 async function cameraScan(btn){
  if(!busy(btn,'Abrindo câmera...'))return;
- if(!('BarcodeDetector' in window)){free(btn);return alert('A leitura automática pela câmera não é suportada neste navegador. Digite o código ou use um leitor Bluetooth/USB.');}
- try{let stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});let video=document.createElement('video');video.srcObject=stream;video.setAttribute('playsinline','');await video.play();$('modal').innerHTML='<div class="modal"><div class="dialog"><h2>Aponte para o código de barras</h2><div id="videoBox"></div><div class="actions"><button class="secondary" onclick="stopCam()">Cancelar</button></div></div></div>';$('videoBox').appendChild(video);video.style.width='100%';window._stream=stream;free(btn);window._camTimer=setInterval(async()=>{try{let det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});let codes=await det.detect(video);if(codes[0]){let c=codes[0].rawValue;stopCam();go('scanner');setTimeout(()=>{$('scanInput').value=c;showCode(c)},50)}}catch(e){}},600)
- }catch(e){free(btn);alert('Não foi possível acessar a câmera: '+e.message)}
+ if(!navigator.mediaDevices?.getUserMedia){free(btn);return alert('A câmera não está disponível neste navegador. Use a versão HTTPS do sistema ou um leitor externo.');}
+ if(!('BarcodeDetector' in window)){free(btn);return alert('A leitura automática de código de barras não é suportada neste navegador. Digite o código ou use um leitor Bluetooth/USB.');}
+ try{
+  const stream=await navigator.mediaDevices.getUserMedia({
+   video:{
+    facingMode:{ideal:'environment'},
+    width:{ideal:1920},
+    height:{ideal:1080}
+   },
+   audio:false
+  });
+  const track=stream.getVideoTracks()[0];
+  const caps=track.getCapabilities?track.getCapabilities():{};
+  const settings=track.getSettings?track.getSettings():{};
+  window._stream=stream;window._camTrack=track;window._torchOn=false;
+
+  // Tenta foco contínuo quando exposto pelo navegador/aparelho.
+  try{
+   if(Array.isArray(caps.focusMode)&&caps.focusMode.includes('continuous')){
+    await track.applyConstraints({advanced:[{focusMode:'continuous'}]});
+   }
+  }catch(e){}
+
+  const video=document.createElement('video');
+  video.srcObject=stream;video.setAttribute('playsinline','');video.muted=true;
+  await video.play();
+
+  $('modal').innerHTML=`<div class="modal cameraModal"><div class="dialog scanDialog">
+   <h2>Escanear código</h2>
+   <p class="scanHint">Centralize o código dentro da moldura. Para códigos pequenos, aproxime o aparelho ou use o zoom.</p>
+   <div class="cameraStage" id="videoBox"><div class="scanFrame"></div></div>
+   <div class="cameraControls">
+    <button id="torchBtn" class="secondary hide" onclick="toggleTorch(this)">🔦 Ligar lanterna</button>
+    <div id="zoomBox" class="zoomControl hide">
+     <span>🔍 Zoom</span>
+     <input id="zoomRange" type="range" oninput="setCameraZoom(this.value)">
+     <span id="zoomValue">1×</span>
+    </div>
+    <button class="secondary" onclick="stopCam()">Cancelar</button>
+   </div>
+   <div class="camStatus" id="camStatus"></div>
+  </div></div>`;
+  $('videoBox').prepend(video);
+
+  // Exibe lanterna somente se suportada.
+  if(caps.torch){
+   $('torchBtn').classList.remove('hide');
+  }
+
+  // Exibe zoom somente se a câmera informar faixa de zoom.
+  if(caps.zoom && Number.isFinite(caps.zoom.min) && Number.isFinite(caps.zoom.max) && caps.zoom.max>caps.zoom.min){
+   const zr=$('zoomRange');
+   zr.min=caps.zoom.min;zr.max=caps.zoom.max;zr.step=caps.zoom.step||0.1;
+   zr.value=settings.zoom||caps.zoom.min;
+   $('zoomValue').textContent=Number(zr.value).toFixed(1).replace('.0','')+'×';
+   $('zoomBox').classList.remove('hide');
+  }
+
+  const focusOk=Array.isArray(caps.focusMode)&&caps.focusMode.includes('continuous');
+  $('camStatus').textContent=focusOk?'Foco contínuo ativado.':'Foco automático controlado pelo aparelho.';
+  free(btn);
+
+  const det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+  let detecting=false;
+  window._camTimer=setInterval(async()=>{
+   if(detecting||video.readyState<2)return;
+   detecting=true;
+   try{
+    const codes=await det.detect(video);
+    if(codes[0]){
+     const c=codes[0].rawValue;
+     if(navigator.vibrate)navigator.vibrate(80);
+     stopCam();go('scanner');
+     setTimeout(()=>{$('scanInput').value=c;showCode(c)},50);
+    }
+   }catch(e){}finally{detecting=false}
+  },300);
+ }catch(e){
+  free(btn);
+  const insecure=location.protocol==='file:'||!window.isSecureContext;
+  alert(insecure?'A câmera exige que o ValidaFácil seja aberto por HTTPS. O acesso direto pelo arquivo HTML pode bloquear a câmera.':'Não foi possível acessar a câmera: '+e.message);
+ }
 }
-function stopCam(){clearInterval(window._camTimer);window._stream?.getTracks().forEach(t=>t.stop());closeModal()}
+async function toggleTorch(btn){
+ const track=window._camTrack;if(!track)return;
+ try{
+  const next=!window._torchOn;
+  await track.applyConstraints({advanced:[{torch:next}]});
+  window._torchOn=next;
+  btn.textContent=next?'🔦 Desligar lanterna':'🔦 Ligar lanterna';
+  btn.classList.toggle('camOn',next);
+ }catch(e){alert('A lanterna não pôde ser controlada neste aparelho.')}
+}
+async function setCameraZoom(value){
+ const track=window._camTrack;if(!track)return;
+ const z=Number(value);
+ try{
+  await track.applyConstraints({advanced:[{zoom:z}]});
+  if($('zoomValue'))$('zoomValue').textContent=z.toFixed(1).replace('.0','')+'×';
+ }catch(e){}
+}
+function stopCam(){
+ clearInterval(window._camTimer);
+ window._camTimer=null;
+ window._stream?.getTracks().forEach(t=>t.stop());
+ window._stream=null;window._camTrack=null;window._torchOn=false;
+ closeModal();
+}
 function scrollToTop(){window.scrollTo({top:0,behavior:'smooth'})}
 function updateBackTop(){
  const b=$('backTop');if(!b)return;
