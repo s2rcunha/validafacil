@@ -113,6 +113,14 @@ header{margin-left:230px;transition:margin-left .25s ease}
 .userMeta{min-width:0}.userMeta b,.userMeta span{display:block}.userMeta span{font-size:12px;color:var(--mut);overflow-wrap:anywhere}
 .roleBadge{display:inline-block!important;width:max-content;margin-top:4px;padding:3px 7px;border-radius:99px;background:#eaf1ec;color:#166534!important;font-size:10px!important;font-weight:800}
 @media(max-width:760px){.authBox{padding:19px}.userBar .userText{display:none}.userItem{align-items:flex-start;flex-direction:column}.userItem .row{width:100%}.userItem .row button{flex:1}}
+
+.productVisual{display:flex;gap:12px;align-items:flex-start}
+.productImg{width:82px;height:82px;object-fit:contain;background:#f7faf8;border:1px solid var(--bd);border-radius:12px;flex:0 0 auto}
+.productImgLarge{display:block;width:min(220px,60vw);height:180px;object-fit:contain;background:#f7faf8;border:1px solid var(--bd);border-radius:14px;margin:10px 0}
+.catalogThumb{width:46px;height:46px;object-fit:contain;background:#f7faf8;border:1px solid var(--bd);border-radius:8px;flex:0 0 auto}
+.catalogItemMain{display:flex;align-items:center;gap:10px;min-width:0}
+.imagePreview{width:120px;height:120px;object-fit:contain;border:1px solid var(--bd);border-radius:12px;background:#f7faf8;margin-top:8px}
+@media(max-width:480px){.productImg{width:68px;height:68px}.productVisual{gap:9px}}
 </style>
 </head>
 <body>
@@ -148,7 +156,7 @@ header{margin-left:230px;transition:margin-left .25s ease}
 <div id="modal"></div>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbxEj5V1cBeEUrIwolH8xswG8Cu8gDc6CEKk1wvLXb-GKzZbCw2Fr90wQZZ7oHkG1mXK/exec';
-let DB={catalogo:[],produtos:[],lotes:[],config:{avisoPadraoDias:7}};
+let DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};
 let AUTH={token:localStorage.getItem('validafacil_token')||'',user:null};
 const $=id=>document.getElementById(id), todayISO=()=>new Date().toISOString().slice(0,10);
 function toast(t){let x=document.createElement('div');x.className='toast';x.textContent=t;document.body.appendChild(x);setTimeout(()=>x.remove(),2800)}
@@ -163,7 +171,7 @@ async function api(func,payload={}){
  let r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
  let j=await r.json();if(!j.ok){if(j.code==='AUTH_REQUIRED'||j.code==='SESSION_EXPIRED')forceLogout();throw new Error(j.error||'Erro na API')}return j;
 }
-async function sync(btn){return withBusy(btn,'Sincronizando...',async()=>{try{let r=await api('getDatabase');DB=r.data;render();toast('Dados sincronizados.')}catch(e){alert(e.message)}})}
+async function sync(btn){return withBusy(btn,'Sincronizando...',async()=>{try{let r=await api('getDatabase');DB=r.data;DB.catalogoImagens=DB.catalogoImagens||{};render();toast('Dados sincronizados.')}catch(e){alert(e.message)}})}
 async function saveDB(){try{await api('saveDatabase',DB);render();toast('Salvo no Google Drive.');return true}catch(e){alert(e.message);return false}}
 function prod(id){return DB.produtos.find(x=>x.id===id)}
 function days(s){let a=new Date();a.setHours(0,0,0,0);return Math.round((new Date(s+'T00:00:00')-a)/86400000)}
@@ -199,7 +207,7 @@ function render(){
  <div class="card"><h2>Prioridades</h2>${lotsTable([...ativos].sort((a,b)=>a.validade.localeCompare(b.validade)).slice(0,20))}</div>`;
  $('scanner').innerHTML=`<div class="card"><h2>Escanear produto</h2><p class="mut">Use a câmera quando disponível ou digite o código de barras.</p><div class="field"><label>Código de barras</label><input id="scanInput" inputmode="numeric" enterkeyhint="search" autocomplete="off" placeholder="Leia ou digite o código" onkeydown="scanInputKey(event)"></div><div class="row"><button class="primary bigscan" onclick="lookupCode(this)">Consultar código</button><button class="secondary" onclick="cameraScan(this)">📷 Usar câmera</button></div><div id="scanResult"></div></div>`;
  $('produtos').innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Produtos e lotes</h2><div class="mut">Cada código pode ter várias validades e avisos diferentes.</div></div></div>${productCards()}</div>`;
- $('catalogo').innerHTML=`<div class="card"><h2>Importar catálogo de nomes</h2><p class="mut">Selecione Excel (.xlsx/.xls) ou CSV. Depois escolha qual coluna contém o nome dos produtos.</p><input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" onchange="readSheet(event)"><div id="importArea"></div></div>
+ $('catalogo').innerHTML=`<div class="card"><h2>Importar catálogo de nomes</h2><p class="mut">Selecione Excel (.xlsx/.xls) ou CSV. A 1ª linha é o cabeçalho, a 2ª é ignorada e a importação começa na 3ª linha. A imagem será lida da última coluna preenchida de cada linha.</p><input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" onchange="readSheet(event)"><div id="importArea"></div></div>
  <div class="card"><h3>Catálogo importado (${DB.catalogo.length})</h3><input id="catSearch" placeholder="Pesquisar nome..." oninput="filterCatalog()"><div id="catList">${catalogList(DB.catalogo.slice(0,200))}</div></div>`;
  $('config').innerHTML=`<div class="card"><h2>Configurações</h2><div class="field"><label>Aviso padrão para novos lotes (dias antes)</label><input id="defaultDays" type="number" min="0" value="${DB.config?.avisoPadraoDias??7}"></div><button class="primary" onclick="saveConfig(this)">Salvar configuração</button></div>`;
  const isAdmin=AUTH.user?.perfil==='admin';
@@ -211,8 +219,10 @@ function render(){
  setTimeout(updateBackTop,0);
 }
 function lotsTable(ls){if(!ls.length)return '<p class="mut">Nenhum lote.</p>';return `<div class="scroll"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Validade</th><th>Aviso</th><th>Status</th></tr></thead><tbody>${ls.map(l=>`<tr><td>${esc(prod(l.produtoId)?.nome||'?')}</td><td>${l.quantidade}</td><td>${br(l.validade)}</td><td>${l.avisoDiasAntes} dia(s)</td><td>${pill(l.validade)}</td></tr>`).join('')}</tbody></table></div>`}
-function productCards(){if(!DB.produtos.length)return '<p class="mut">Nenhum produto associado a código de barras ainda.</p>';return DB.produtos.map(p=>{let ls=DB.lotes.filter(l=>l.produtoId===p.id);return `<div class="lot"><div class="lothead"><div><b>${esc(p.nome)}</b><div class="mut code">${esc(p.codigoBarras)}</div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');openNewLot('${p.codigoBarras}')">+ validade</button></div>${ls.length?lotsTable(ls):'<p class="mut">Sem lotes.</p>'}</div>`}).join('')}
-function catalogList(a){return a.map(x=>`<div class="catalogItem"><span class="catalogItemName">${esc(x)}</span><button class="danger catalogDelete" onclick="deleteCatalogName('${encodeURIComponent(x)}',this)">Excluir</button></div>`).join('')||'<p class="mut">Catálogo vazio.</p>'}
+function productImageUrl(p){return p?.imagemUrl||DB.catalogoImagens?.[normalizeName(p?.nome||'')]||''}
+function imgTag(url,cls='productImg',alt='Imagem do produto'){return url?`<img class="${cls}" src="${esc(url)}" alt="${esc(alt)}" loading="lazy" onerror="this.style.display='none'">`:''}
+function productCards(){if(!DB.produtos.length)return '<p class="mut">Nenhum produto associado a código de barras ainda.</p>';return DB.produtos.map(p=>{let ls=DB.lotes.filter(l=>l.produtoId===p.id),url=productImageUrl(p);return `<div class="lot"><div class="lothead"><div class="productVisual">${imgTag(url)}<div><b>${esc(p.nome)}</b><div class="mut code">${esc(p.codigoBarras)}</div><div class="row" style="margin-top:7px"><button class="secondary" onclick="openProductImage('${p.id}')">📷 ${url?'Alterar imagem':'Adicionar imagem'}</button></div></div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');openNewLot('${p.codigoBarras}')">+ validade</button></div>${ls.length?lotsTable(ls):'<p class="mut">Sem lotes.</p>'}</div>`}).join('')}
+function catalogList(a){return a.map(x=>{const u=DB.catalogoImagens?.[normalizeName(x)]||'';return `<div class="catalogItem"><div class="catalogItemMain">${imgTag(u,'catalogThumb',x)}<span class="catalogItemName">${esc(x)}</span></div><button class="danger catalogDelete" onclick="deleteCatalogName('${encodeURIComponent(x)}',this)">Excluir</button></div>`}).join('')||'<p class="mut">Catálogo vazio.</p>'}
 function filterCatalog(){let q=normalizeName($('catSearch').value);$('catList').innerHTML=catalogList(DB.catalogo.filter(x=>normalizeName(x).includes(q)).slice(0,200))}
 async function deleteCatalogName(encodedName,btn){
  const nome=decodeURIComponent(encodedName);
@@ -220,21 +230,31 @@ async function deleteCatalogName(encodedName,btn){
  return withBusy(btn,'Excluindo...',async()=>{
   const anterior=[...DB.catalogo];
   DB.catalogo=DB.catalogo.filter(n=>normalizeName(n)!==normalizeName(nome));
+  DB.catalogoImagens=DB.catalogoImagens||{};delete DB.catalogoImagens[normalizeName(nome)];
   const ok=await saveDB();
   if(!ok){DB.catalogo=anterior;render();return}
   toast('Nome excluído do catálogo.');
  });
 }
 async function readSheet(ev){
- let f=ev.target.files[0];if(!f)return;let buf=await f.arrayBuffer(), wb=XLSX.read(buf), ws=wb.Sheets[wb.SheetNames[0]], rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+ let f=ev.target.files[0];if(!f)return;let buf=await f.arrayBuffer(),wb=XLSX.read(buf),ws=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
  if(!rows.length)return alert('Planilha vazia.');let headers=rows[0].map((x,i)=>String(x||`Coluna ${i+1}`));
  window._sheetRows=rows;
- $('importArea').innerHTML=`<div class="field" style="margin-top:12px"><label>Coluna com o nome dos produtos</label><select id="nameColumn">${headers.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('')}</select></div><button class="primary" onclick="importNames(this)">Importar nomes</button>`;
+ $('importArea').innerHTML=`<div class="field" style="margin-top:12px"><label>Coluna com o nome dos produtos</label><select id="nameColumn">${headers.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('')}</select></div><p class="mut">A linha 2 será ignorada. A imagem de cada produto será obtida da última célula preenchida da respectiva linha (ex.: coluna AB).</p><button class="primary" onclick="importNames(this)">Importar nomes e imagens</button>`;
 }
 async function importNames(btn){return withBusy(btn,'Importando...',async()=>{
- let i=+$('nameColumn').value, names=window._sheetRows.slice(1).map(r=>String(r[i]||'').trim()).filter(Boolean);
- DB.catalogo=mergeCatalogNames(DB.catalogo,names);
- await saveDB();
+ let i=+$('nameColumn').value,rows=window._sheetRows.slice(2),names=[],imgs={};
+ rows.forEach(r=>{
+  const nome=String(r[i]||'').replace(/\s+/g,' ').trim();if(!nome)return;
+  names.push(nome);
+  let last='';
+  for(let c=r.length-1;c>=0;c--){if(String(r[c]??'').trim()){last=String(r[c]).trim();break}}
+  if(/^https?:\/\//i.test(last))imgs[normalizeName(nome)]=last;
+ });
+ DB.catalogo=mergeCatalogNames(DB.catalogo,names);DB.catalogoImagens=DB.catalogoImagens||{};
+ Object.assign(DB.catalogoImagens,imgs);
+ DB.produtos.forEach(p=>{const u=imgs[normalizeName(p.nome)];if(u&&!p.imagemArquivoId){p.imagemUrl=u;p.imagemOrigem='catalogo'}});
+ await saveDB();toast(`${names.length} linha(s) processada(s).`);
 })}
 function lookupCode(btn){let c=$('scanInput').value.trim();if(!c)return alert('Informe ou leia o código de barras.');if(!busy(btn,'Consultando...'))return;try{showCode(c)}finally{setTimeout(()=>free(btn),180)}}
 function scanInputKey(e){
@@ -247,15 +267,34 @@ function showCode(c){
  let p=DB.produtos.find(x=>x.codigoBarras===c);
  if(!p){$('scanResult').innerHTML=`<div class="card"><h3>Código ainda não cadastrado</h3><div class="code">${esc(c)}</div><p class="mut">Associe este código a um nome do catálogo ou cadastre um nome novo.</p><button class="primary" onclick="quickBusy(this,'Abrindo...');openNewProduct('${esc(c)}')">Cadastrar produto</button></div>`;return}
  let ls=DB.lotes.filter(l=>l.produtoId===p.id);
- $('scanResult').innerHTML=`<div class="card"><h3>${esc(p.nome)}</h3><div class="code mut">${esc(c)}</div>${ls.map(l=>lotCard(l)).join('')||'<p class="mut">Nenhuma validade cadastrada.</p>'}<button class="primary" onclick="quickBusy(this,'Abrindo...');openNewLot('${esc(c)}')">+ Adicionar nova validade</button></div>`;
+ let u=productImageUrl(p);$('scanResult').innerHTML=`<div class="card">${imgTag(u,'productImgLarge',p.nome)}<h3>${esc(p.nome)}</h3><div class="code mut">${esc(c)}</div><div class="row" style="margin:9px 0"><button class="secondary" onclick="openProductImage('${p.id}')">📷 ${u?'Alterar imagem':'Adicionar imagem'}</button></div>${ls.map(l=>lotCard(l)).join('')||'<p class="mut">Nenhuma validade cadastrada.</p>'}<button class="primary" onclick="quickBusy(this,'Abrindo...');openNewLot('${esc(c)}')">+ Adicionar nova validade</button></div>`;
 }
 function lotCard(l){return `<div class="lot"><div class="lothead"><div><b>${l.quantidade} unidade(s)</b><div>Validade: ${br(l.validade)} • aviso ${l.avisoDiasAntes} dia(s) antes</div><div>${pill(l.validade)}</div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');editLot('${l.id}')">Editar</button></div></div>`}
 function openNewProduct(code){
  $('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Associar código ao produto</h2><div class="field"><label>Código</label><input value="${esc(code)}" disabled></div>
  <div class="field"><label>Escolher nome do catálogo</label><input id="nameSearch" list="namesList" placeholder="Digite para pesquisar..."><datalist id="namesList">${DB.catalogo.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
- <div class="mut">Se o nome não existir, basta digitar um novo nome.</div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveNewProduct('${esc(code)}',this)">Continuar</button></div></div></div>`;
+ <div class="mut">Se o nome não existir, basta digitar um novo nome.</div>
+ <div class="field" style="margin-top:12px"><label>Imagem do produto (opcional)</label><input id="newProductImage" type="file" accept="image/*" capture="environment" onchange="previewChosenImage(this,'newImagePreview')"><img id="newImagePreview" class="imagePreview hide" alt="Prévia"></div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveNewProduct('${esc(code)}',this)">Continuar</button></div></div></div>`;
 }
-async function saveNewProduct(code,btn){let nome=$('nameSearch').value.replace(/\s+/g,' ').trim();if(!nome)return alert('Informe o nome.');return withBusy(btn,'Salvando...',async()=>{let existente=DB.catalogo.find(n=>normalizeName(n)===normalizeName(nome));if(existente)nome=existente;else DB.catalogo=mergeCatalogNames(DB.catalogo,[nome]);let p={id:crypto.randomUUID(),codigoBarras:code,nome};DB.produtos.push(p);let ok=await saveDB();if(ok!==false){closeModal();openLotForm(p)}})}
+async function saveNewProduct(code,btn){
+ let nome=$('nameSearch').value.replace(/\s+/g,' ').trim();if(!nome)return alert('Informe o nome.');
+ return withBusy(btn,'Salvando...',async()=>{
+  let existente=DB.catalogo.find(n=>normalizeName(n)===normalizeName(nome));if(existente)nome=existente;else DB.catalogo=mergeCatalogNames(DB.catalogo,[nome]);
+  let p={id:crypto.randomUUID(),codigoBarras:code,nome};
+  const catImg=DB.catalogoImagens?.[normalizeName(nome)];if(catImg){p.imagemUrl=catImg;p.imagemOrigem='catalogo'}
+  const file=$('newProductImage')?.files?.[0];
+  if(file){const up=await uploadProductImageFile(file,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive'}
+  DB.produtos.push(p);let ok=await saveDB();if(ok!==false){closeModal();openLotForm(p)}
+ })}
+
+function previewChosenImage(input,id){const f=input.files?.[0],im=$(id);if(!f||!im)return;im.src=URL.createObjectURL(f);im.classList.remove('hide')}
+function fileToCompressedData(file){
+ return new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{try{const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale)),cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);resolve(cv.toDataURL('image/jpeg',.82))}catch(e){reject(e)}};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Não foi possível ler a imagem.'))};img.src=url})
+}
+async function uploadProductImageFile(file,produtoId,nome){if(!file.type.startsWith('image/'))throw new Error('Selecione um arquivo de imagem.');const dataUrl=await fileToCompressedData(file);const r=await api('uploadProductImage',{produtoId,nome,dataUrl});return r.image}
+function openProductImage(pid){const p=prod(pid),u=productImageUrl(p);$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Imagem do produto</h2><p><b>${esc(p.nome)}</b></p>${imgTag(u,'productImgLarge',p.nome)}<div class="field"><label>Tirar foto ou escolher imagem</label><input id="productImageFile" type="file" accept="image/*" capture="environment" onchange="previewChosenImage(this,'productImagePreview')"><img id="productImagePreview" class="imagePreview hide" alt="Prévia"></div><p class="mut">A imagem será reduzida e salva na subpasta “Imagens Produtos” do Google Drive.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveProductImage('${pid}',this)">Salvar imagem</button></div></div></div>`}
+async function saveProductImage(pid,btn){const f=$('productImageFile')?.files?.[0];if(!f)return alert('Tire uma foto ou escolha uma imagem.');return withBusy(btn,'Enviando...',async()=>{try{const p=prod(pid),up=await uploadProductImageFile(f,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive';const ok=await saveDB();if(ok){closeModal();render();toast('Imagem do produto salva.')}}catch(e){alert(e.message)}})}
+
 function openNewLot(code){let p=DB.produtos.find(x=>x.codigoBarras===code);openLotForm(p)}
 function openLotForm(p){
  $('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Nova validade</h2><p><b>${esc(p.nome)}</b><br><span class="code mut">${esc(p.codigoBarras)}</span></p>
@@ -398,7 +437,7 @@ function showAuthLogin(msg=''){
 }
 async function login(btn){const email=$('loginEmail').value.trim(),senha=$('loginPass').value;if(!email||!senha)return alert('Informe e-mail e senha.');return withBusy(btn,'Entrando...',async()=>{try{const r=await api('login',{email,senha});AUTH.token=r.token;AUTH.user=r.user;localStorage.setItem('validafacil_token',AUTH.token);$('authScreen').classList.add('hide');await sync()}catch(e){alert(e.message)}})}
 function forceLogout(){AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin('Sua sessão terminou. Entre novamente.')}
-async function logout(){try{if(AUTH.token)await api('logout')}catch(e){}AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');DB={catalogo:[],produtos:[],lotes:[],config:{avisoPadraoDias:7}};showAuthLogin()}
+async function logout(){try{if(AUTH.token)await api('logout')}catch(e){}AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');DB={catalogo:[],catalogoImagens:{},produtos:[],lotes:[],config:{avisoPadraoDias:7}};showAuthLogin()}
 function showForgot(){$('authContent').innerHTML=`<h3>Redefinir senha</h3><p class="mut">Informe o e-mail cadastrado. Enviaremos um código de verificação válido por 15 minutos.</p><div class="field"><label>E-mail</label><input id="forgotEmail" type="email"></div><button class="primary bigscan" onclick="requestReset(this)">Enviar código</button><div class="authLinks"><button class="linkBtn" onclick="showAuthLogin()">Voltar ao login</button></div>`}
 async function requestReset(btn){const email=$('forgotEmail').value.trim();if(!email)return alert('Informe o e-mail.');return withBusy(btn,'Enviando...',async()=>{try{await api('requestPasswordReset',{email});showReset(email)}catch(e){alert(e.message)}})}
 function showReset(email){$('authContent').innerHTML=`<h3>Criar nova senha</h3><p class="mut">Digite o código enviado para <b>${esc(email)}</b>.</p><div class="field"><label>Código</label><input id="resetCode" inputmode="numeric" autocomplete="one-time-code"></div><div class="field"><label>Nova senha</label><input id="resetPass" type="password" minlength="6"></div><div class="field"><label>Confirmar nova senha</label><input id="resetPass2" type="password" minlength="6"></div><button class="primary bigscan" onclick="confirmReset('${esc(email)}',this)">Alterar senha</button><div class="authLinks"><button class="linkBtn" onclick="showAuthLogin()">Voltar ao login</button></div>`}
