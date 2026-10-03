@@ -228,14 +228,12 @@ function normalizeName(s=''){
   .trim()
   .toLocaleLowerCase('pt-BR');
 }
-function mergeCatalogNames(existing=[],incoming=[]){
+function upperProductName(s){return String(s||'').replace(/\s+/g,' ').trim().toLocaleUpperCase('pt-BR')}
+function mergeCatalogNames(base,add){
  const map=new Map();
- [...existing,...incoming].forEach(raw=>{
-  const name=String(raw||'').replace(/\s+/g,' ').trim();
-  if(!name)return;
-  const key=normalizeName(name);
-  if(!map.has(key))map.set(key,name);
- });
+ [...(base||[]),...(add||[])].forEach(n=>{const v=upperProductName(n);if(v&&!map.has(normalizeName(v)))map.set(normalizeName(v),v)});
+ return [...map.values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}))
+});
  return [...map.values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
 }
 function catalogHasName(name){
@@ -286,7 +284,7 @@ async function readSheet(ev){
 async function importNames(btn){return withBusy(btn,'Importando...',async()=>{
  let i=+$('nameColumn').value,rows=window._sheetRows.slice(2),names=[],imgs={};
  rows.forEach(r=>{
-  const nome=String(r[i]||'').replace(/\s+/g,' ').trim();if(!nome)return;
+  const nome=upperProductName(r[i]);if(!nome)return;
   names.push(nome);
   let last='';
   for(let c=r.length-1;c>=0;c--){if(String(r[c]??'').trim()){last=String(r[c]).trim();break}}
@@ -339,13 +337,13 @@ function chooseCatalogProduct(encodedName){
 }
 
 async function saveNewProduct(code,btn){
- let nome=$('nameSearch').value.replace(/\s+/g,' ').trim();if(!nome)return alert('Informe o nome.');
+ let nome=upperProductName($('nameSearch').value);if(!nome)return alert('Informe o nome.');
  return withBusy(btn,'Salvando...',async()=>{
-  let existente=DB.catalogo.find(n=>normalizeName(n)===normalizeName(nome));if(existente)nome=existente;else DB.catalogo=mergeCatalogNames(DB.catalogo,[nome]);
+  let existente=DB.catalogo.find(n=>normalizeName(n)===normalizeName(nome));if(existente)nome=upperProductName(existente);else DB.catalogo=mergeCatalogNames(DB.catalogo,[nome]);
   let p={id:crypto.randomUUID(),codigoBarras:code,nome};
   const catImg=DB.catalogoImagens?.[normalizeName(nome)];if(catImg){p.imagemUrl=catImg;p.imagemOrigem='catalogo'}
   const file=$('newProductImage')?.files?.[0];
-  if(file){const up=await uploadProductImageFile(file,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive'}
+  if(file){const up=await uploadProductImageFile(file,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive';DB.catalogoImagens=DB.catalogoImagens||{};DB.catalogoImagens[normalizeName(p.nome)]=up.url}
   DB.produtos.push(p);let ok=await saveDB();if(ok!==false){closeModal();openLotForm(p)}
  })}
 
@@ -355,7 +353,7 @@ function fileToCompressedData(file){
 }
 async function uploadProductImageFile(file,produtoId,nome){if(!file.type.startsWith('image/'))throw new Error('Selecione um arquivo de imagem.');const dataUrl=await fileToCompressedData(file);const r=await api('uploadProductImage',{produtoId,nome,dataUrl});return r.image}
 function openProductImage(pid){const p=prod(pid),u=productImageUrl(p);$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Imagem do produto</h2><p><b>${esc(p.nome)}</b></p>${imgTag(u,'productImgLarge',p.nome)}<div class="field"><label>Tirar foto ou escolher imagem</label><input id="productImageFile" type="file" accept="image/*" capture="environment" onchange="previewChosenImage(this,'productImagePreview')"><img id="productImagePreview" class="imagePreview hide" alt="Prévia"></div><p class="mut">A imagem será reduzida e salva na subpasta “Imagens Produtos” do Google Drive.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveProductImage('${pid}',this)">Salvar imagem</button></div></div></div>`}
-async function saveProductImage(pid,btn){const f=$('productImageFile')?.files?.[0];if(!f)return alert('Tire uma foto ou escolha uma imagem.');return withBusy(btn,'Enviando...',async()=>{try{const p=prod(pid),up=await uploadProductImageFile(f,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive';const ok=await saveDB();if(ok){closeModal();render();toast('Imagem do produto salva.')}}catch(e){alert(e.message)}})}
+async function saveProductImage(pid,btn){const f=$('productImageFile')?.files?.[0];if(!f)return alert('Tire uma foto ou escolha uma imagem.');return withBusy(btn,'Enviando...',async()=>{try{const p=prod(pid),up=await uploadProductImageFile(f,p.id,p.nome);p.imagemUrl=up.url;p.imagemArquivoId=up.fileId;p.imagemOrigem='drive';DB.catalogoImagens=DB.catalogoImagens||{};DB.catalogoImagens[normalizeName(p.nome)]=up.url;const ok=await saveDB();if(ok){closeModal();render();toast('Imagem do produto salva.')}}catch(e){alert(e.message)}})}
 
 function openNewLot(code){let p=DB.produtos.find(x=>x.codigoBarras===code);openLotForm(p)}
 function openLotForm(p){
@@ -505,10 +503,15 @@ async function requestReset(btn){const email=$('forgotEmail').value.trim();if(!e
 function showReset(email){$('authContent').innerHTML=`<h3>Criar nova senha</h3><p class="mut">Digite o código enviado para <b>${esc(email)}</b>.</p><div class="field"><label>Código</label><input id="resetCode" inputmode="numeric" autocomplete="one-time-code"></div><div class="field"><label>Nova senha</label><input id="resetPass" type="password" minlength="6"></div><div class="field"><label>Confirmar nova senha</label><input id="resetPass2" type="password" minlength="6"></div><button class="primary bigscan" onclick="confirmReset('${esc(email)}',this)">Alterar senha</button><div class="authLinks"><button class="linkBtn" onclick="showAuthLogin()">Voltar ao login</button></div>`}
 async function confirmReset(email,btn){const codigo=$('resetCode').value.trim(),senha=$('resetPass').value,senha2=$('resetPass2').value;if(senha!==senha2)return alert('As senhas não coincidem.');if(senha.length<6)return alert('A senha deve ter pelo menos 6 caracteres.');return withBusy(btn,'Alterando...',async()=>{try{await api('confirmPasswordReset',{email,codigo,novaSenha:senha});showAuthLogin('Senha alterada com sucesso.')}catch(e){alert(e.message)}})}
 async function restoreSession(){if(!AUTH.token){showAuthLogin();return}try{const r=await api('session');AUTH.user=r.user;$('authScreen').classList.add('hide');await sync();startAutoSync()}catch(e){AUTH={token:'',user:null};localStorage.removeItem('validafacil_token');showAuthLogin()}}
-async function loadUsers(){if(AUTH.user?.perfil!=='admin')return;try{const r=await api('listUsers');const box=$('usersList');if(!box)return;box.innerHTML=r.users.map(u=>`<div class="userItem"><div class="userMeta"><b>${esc(u.nome)}</b><span>${esc(u.email)}</span><span class="roleBadge">${u.perfil==='admin'?'Administrador':'Usuário'}${u.ativo?'':' • Inativo'}</span></div><div class="row">${u.id!==AUTH.user.id?`<button class="${u.ativo?'warning':'secondary'}" onclick="toggleUser('${u.id}',${!u.ativo},this)">${u.ativo?'Inativar':'Reativar'}</button>`:''}<button class="secondary" onclick="adminReset('${u.id}',this)">Enviar redefinição</button></div></div>`).join('')||'<p class="mut">Nenhum usuário.</p>'}catch(e){if($('usersList'))$('usersList').innerHTML=`<p class="mut">${esc(e.message)}</p>`}}
+async function loadUsers(){if(AUTH.user?.perfil!=='admin')return;try{const r=await api('listUsers');const box=$('usersList');if(!box)return;box.innerHTML=r.users.map(u=>`<div class="userItem"><div class="userMeta"><b>${esc(u.nome)}</b><span>${esc(u.email)}</span><span class="roleBadge">${u.perfil==='admin'?'Administrador':'Usuário'}${u.ativo?'':' • Inativo'}</span></div><div class="row">${u.id!==AUTH.user.id?`<button class="${u.ativo?'warning':'secondary'}" onclick="toggleUser('${u.id}',${!u.ativo},this)">${u.ativo?'Inativar':'Reativar'}</button><button class="danger" onclick="deleteUser('${u.id}','${encodeURIComponent(u.nome)}',this)">Excluir</button>`:''}<button class="secondary" onclick="adminReset('${u.id}',this)">Enviar redefinição</button></div></div>`).join('')||'<p class="mut">Nenhum usuário.</p>'}catch(e){if($('usersList'))$('usersList').innerHTML=`<p class="mut">${esc(e.message)}</p>`}}
 function openNewUser(){$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Adicionar usuário</h2><div class="field"><label>Nome</label><input id="un"></div><div class="field"><label>E-mail</label><input id="ue" type="email"></div><div class="field"><label>Perfil</label><select id="up"><option value="user">Usuário</option><option value="admin">Administrador</option></select></div><p class="mut">O usuário receberá por e-mail um código para criar a própria senha.</p><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="createUser(this)">Cadastrar</button></div></div></div>`}
 async function createUser(btn){const nome=$('un').value.trim(),email=$('ue').value.trim(),perfil=$('up').value;if(!nome||!email)return alert('Informe nome e e-mail.');return withBusy(btn,'Cadastrando...',async()=>{try{await api('createUser',{nome,email,perfil});closeModal();await loadUsers();toast('Usuário cadastrado e convite enviado.')}catch(e){alert(e.message)}})}
 async function toggleUser(id,ativo,btn){return withBusy(btn,ativo?'Reativando...':'Inativando...',async()=>{try{await api('setUserActive',{id,ativo});await loadUsers()}catch(e){alert(e.message)}})}
+async function deleteUser(id,nomeEnc,btn){
+ const nome=decodeURIComponent(nomeEnc);
+ if(!confirm(`Excluir definitivamente o usuário "${nome}"?\n\nEle perderá o acesso imediatamente. Esta ação não pode ser desfeita.`))return;
+ return withBusy(btn,'Excluindo...',async()=>{try{await api('deleteUser',{id});await loadUsers();toast('Usuário excluído.')}catch(e){alert(e.message)}})
+}
 async function adminReset(id,btn){return withBusy(btn,'Enviando...',async()=>{try{await api('adminPasswordReset',{id});toast('Código de redefinição enviado.')}catch(e){alert(e.message)}})}
 
 restoreSession();
