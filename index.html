@@ -244,8 +244,6 @@ function upperProductName(s){return String(s||'').replace(/\s+/g,' ').trim().toL
 function mergeCatalogNames(base,add){
  const map=new Map();
  [...(base||[]),...(add||[])].forEach(n=>{const v=upperProductName(n);if(v&&!map.has(normalizeName(v)))map.set(normalizeName(v),v)});
- return [...map.values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}))
-});
  return [...map.values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
 }
 function catalogHasName(name){
