@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<title>ValidaFácil</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{--g:#166534;--g2:#22c55e;--bg:#f4f7f5;--card:#fff;--txt:#17201b;--mut:#66736a;--bd:#dce5df;--red:#b91c1c;--org:#c2410c;--yel:#a16207}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--txt)}
+header{background:#103a22;color:white;padding:16px 18px;position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between}
+header b{font-size:20px}header small{display:block;color:#b9d3c1}.wrap{max-width:1100px;margin:auto;padding:18px 18px 90px}
+nav{display:flex;gap:8px;overflow:auto;margin-bottom:16px}.tab{white-space:nowrap;border:1px solid var(--bd);background:white;padding:10px 13px;border-radius:10px;font-weight:700;cursor:pointer}.tab.on{background:var(--g);color:white;border-color:var(--g)}
+.card{background:white;border:1px solid var(--bd);border-radius:15px;padding:17px;margin-bottom:15px;box-shadow:0 2px 10px #00000008}.card h2,.card h3{margin:0 0 12px}.mut{color:var(--mut);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{background:white;border:1px solid var(--bd);border-radius:14px;padding:15px}.stat strong{font-size:26px;display:block}
+button,.btn{border:0;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer}
+button:disabled,.btn:disabled{opacity:.65;cursor:not-allowed}
+.btn-spinner{display:inline-block;width:15px;height:15px;margin-right:7px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:btnspin .7s linear infinite}
+@keyframes btnspin{to{transform:rotate(360deg)}}.primary{background:var(--g);color:white}.secondary{background:#eaf1ec;color:#23452f}.danger{background:#fee2e2;color:#991b1b}.warning{background:#ffedd5;color:#9a3412}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}.field label{font-size:13px;font-weight:700}
+input,select{border:1px solid #cbd7ce;border-radius:9px;padding:11px;background:white;width:100%;font:inherit}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.span2{grid-column:span 2}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #edf1ee;font-size:14px}th{font-size:11px;color:#6b766e;text-transform:uppercase}.scroll{overflow:auto}
+.pill{display:inline-block;border-radius:99px;padding:5px 8px;font-size:11px;font-weight:800}.red{background:#fee2e2;color:var(--red)}.org{background:#ffedd5;color:var(--org)}.yel{background:#fef9c3;color:var(--yel)}.green{background:#dcfce7;color:#15803d}.gray{background:#edf1ee;color:#536158}
+.hide{display:none!important}.modal{position:fixed;inset:0;background:#0008;z-index:100;display:grid;place-items:center;padding:15px}.dialog{background:white;width:min(620px,100%);max-height:92vh;overflow:auto;border-radius:16px;padding:19px}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.lot{border:1px solid var(--bd);border-radius:12px;padding:13px;margin:10px 0}.lothead{display:flex;justify-content:space-between;gap:10px}.bigscan{padding:16px;font-size:17px;width:100%}
+.toast{position:fixed;right:18px;bottom:18px;background:#17201b;color:white;padding:12px 15px;border-radius:10px;z-index:200;max-width:350px}
+.catalogItem{padding:9px 0;border-bottom:1px solid #edf1ee;display:flex;align-items:center;justify-content:space-between;gap:10px}.catalogItemName{min-width:0;overflow-wrap:anywhere}.catalogDelete{flex:0 0 auto}.code{font-family:ui-monospace,Consolas,monospace}
+/* Voltar ao topo */
+.backTop{position:fixed;right:20px;bottom:22px;z-index:50;width:46px;height:46px;min-height:46px;padding:0;border-radius:50%;background:#166534;color:#fff;box-shadow:0 5px 18px #0003;display:flex;align-items:center;justify-content:center;font-size:22px;opacity:0;visibility:hidden;transform:translateY(12px);pointer-events:none;transition:opacity .2s,transform .2s,visibility .2s}
+.backTop.show{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto}
+.backTop:hover{background:#14532d}
+@media(max-width:760px){.backTop{right:13px;bottom:16px;width:48px;height:48px;min-height:48px;z-index:45}}
+/* Layout com sidebar */
+body{min-height:100vh}
+header{margin-left:230px;transition:margin-left .25s ease}
+.wrap{max-width:none;margin-left:230px;padding:20px 22px 90px;transition:margin-left .25s ease}
+.sidebar{position:fixed;inset:0 auto 0 0;width:230px;background:#0d2f1b;color:white;z-index:60;padding:18px 12px;display:flex;flex-direction:column;box-shadow:3px 0 18px #0002}
+.sidebarBrand{padding:5px 8px 18px;border-bottom:1px solid #ffffff18;margin-bottom:12px}
+.sidebarBrand b{font-size:20px}.sidebarBrand small{display:block;color:#a9c8b3;margin-top:3px}
+.sidebar nav{display:flex;flex-direction:column;gap:7px;overflow:visible;margin:0}
+.sidebar .tab{width:100%;text-align:left;background:transparent;color:#dbe9df;border:0;padding:12px 13px;border-radius:10px;font-size:14px}
+.sidebar .tab:hover{background:#ffffff10}.sidebar .tab.on{background:#1d6b3b;color:#fff}
+.sidebarFoot{margin-top:auto;padding:12px 8px 2px;color:#8fb29a;font-size:11px}
+.menuBtn{display:none;background:#ffffff16;color:white;border:1px solid #ffffff22;padding:9px 11px;font-size:18px}
+.sidebarOverlay{display:none}
+.mobileTitle{display:none}
+@media(max-width:760px){
+ header{margin-left:0;padding:11px 12px;gap:10px}
+ header>div:first-of-type{display:none}
+ .mobileTitle{display:block;flex:1;min-width:0;font-weight:800;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .menuBtn{display:inline-flex;align-items:center;justify-content:center;min-width:42px;min-height:42px}
+ header .secondary{padding:10px 11px;min-height:42px;font-size:0}
+ header .secondary::after{content:'↻';font-size:20px}
+ .wrap{margin-left:0;padding:12px 10px 80px}
+ .sidebar{transform:translateX(-105%);transition:transform .25s ease;width:min(82vw,290px);box-shadow:5px 0 25px #0005}
+ body.menuOpen .sidebar{transform:translateX(0)}
+ .sidebarOverlay{display:block;position:fixed;inset:0;background:#0007;z-index:55;opacity:0;pointer-events:none;transition:opacity .25s}
+ body.menuOpen .sidebarOverlay{opacity:1;pointer-events:auto}
+ .grid{grid-template-columns:1fr 1fr;gap:8px}.stat{padding:12px}.stat strong{font-size:23px}.stat span{font-size:12px}
+ .formgrid{grid-template-columns:1fr}.span2{grid-column:auto}
+ .card{padding:14px;border-radius:13px;margin-bottom:11px}
+ .card h2{font-size:19px}.card h3{font-size:17px}
+ button,.btn{min-height:44px;padding:11px 13px}
+ .row>button{flex:1 1 auto}
+ .bigscan{font-size:16px}
+ input,select{min-height:46px;font-size:16px}
+ .dialog{padding:15px;border-radius:14px;max-height:94vh}
+ .actions{position:sticky;bottom:-15px;background:white;padding:10px 0 0;z-index:2}
+ .actions button{flex:1}
+ .scroll{margin-left:-4px;margin-right:-4px}
+ table{min-width:620px}
+ th,td{padding:9px 7px;font-size:13px}
+ .lot{padding:12px}.lothead{align-items:flex-start;flex-direction:column}.lothead>button{width:100%}
+ .catalogItem{padding:10px 0}.catalogDelete{min-height:38px;padding:8px 10px}
+ .toast{left:10px;right:10px;bottom:12px;max-width:none;text-align:center}
+ .desktopOnly{display:none}
+}
+@media(max-width:390px){.grid{grid-template-columns:1fr 1fr}.stat strong{font-size:21px}.wrap{padding-left:8px;padding-right:8px}}
+</style>
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+ <div class="sidebarBrand"><b>✓ ValidaFácil</b><small>Validades e alertas</small></div>
+ <nav>
+  <button class="tab on" data-p="painel">▦ &nbsp; Painel</button>
+  <button class="tab" data-p="scanner">▣ &nbsp; Escanear</button>
+  <button class="tab" data-p="produtos">▤ &nbsp; Produtos</button>
+  <button class="tab" data-p="catalogo">≡ &nbsp; Catálogo</button>
+  <button class="tab" data-p="config">⚙ &nbsp; Configurações</button>
+ </nav>
+ <div class="sidebarFoot">Controle de validade</div>
+</aside>
+<div class="sidebarOverlay" onclick="closeMenu()"></div>
+<header>
+ <button class="menuBtn" onclick="toggleMenu()" aria-label="Abrir menu">☰</button>
+ <div><b>✓ ValidaFácil</b><small>Validades e alertas</small></div>
+ <div class="mobileTitle" id="mobileTitle">Painel</div>
+ <button class="secondary" onclick="sync(this)">↻ Sincronizar</button>
+</header>
+<div class="wrap">
+<section id="painel"></section><section id="scanner" class="hide"></section><section id="produtos" class="hide"></section><section id="catalogo" class="hide"></section><section id="config" class="hide"></section>
+</div>
+<button id="backTop" class="backTop" onclick="scrollToTop()" aria-label="Voltar ao topo" title="Voltar ao topo">↑</button>
+<div id="modal"></div>
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxEj5V1cBeEUrIwolH8xswG8Cu8gDc6CEKk1wvLXb-GKzZbCw2Fr90wQZZ7oHkG1mXK/exec';
+let DB={catalogo:[],produtos:[],lotes:[],config:{avisoPadraoDias:7}};
+const $=id=>document.getElementById(id), todayISO=()=>new Date().toISOString().slice(0,10);
+function toast(t){let x=document.createElement('div');x.className='toast';x.textContent=t;document.body.appendChild(x);setTimeout(()=>x.remove(),2800)}
+function busy(btn,label='Carregando...'){if(!btn||btn.dataset.busy)return false;btn.dataset.busy='1';btn.dataset.old=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="btn-spinner"></span>'+label;return true}
+function free(btn){if(!btn)return;btn.disabled=false;btn.innerHTML=btn.dataset.old||btn.innerHTML;delete btn.dataset.old;delete btn.dataset.busy}
+async function withBusy(btn,label,fn){if(!busy(btn,label))return;try{return await fn()}finally{free(btn)}}
+function quickBusy(btn,label='Processando...'){if(!busy(btn,label))return;setTimeout(()=>free(btn),180)}
+
+async function api(func,payload={}){
+ if(API_URL.includes('COLE_AQUI')) throw new Error('Configure a URL do Apps Script no index.html.');
+ let r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({func,payload})});
+ let j=await r.json();if(!j.ok)throw new Error(j.error||'Erro na API');return j;
+}
+async function sync(btn){return withBusy(btn,'Sincronizando...',async()=>{try{let r=await api('getDatabase');DB=r.data;render();toast('Dados sincronizados.')}catch(e){alert(e.message)}})}
+async function saveDB(){try{await api('saveDatabase',DB);render();toast('Salvo no Google Drive.');return true}catch(e){alert(e.message);return false}}
+function prod(id){return DB.produtos.find(x=>x.id===id)}
+function days(s){let a=new Date();a.setHours(0,0,0,0);return Math.round((new Date(s+'T00:00:00')-a)/86400000)}
+function br(s){return new Date(s+'T00:00:00').toLocaleDateString('pt-BR')}
+function stat(s){let d=days(s);return d<0?['Vencido','red']:d<=3?['Até 3 dias','org']:d<=7?['Até 7 dias','yel']:d<=15?['Até 15 dias','green']:['No prazo','gray']}
+function pill(s){let a=stat(s);return `<span class="pill ${a[1]}">${a[0]}</span>`}
+function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function normalizeName(s=''){
+ return String(s)
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'')
+  .replace(/\s+/g,' ')
+  .trim()
+  .toLocaleLowerCase('pt-BR');
+}
+function mergeCatalogNames(existing=[],incoming=[]){
+ const map=new Map();
+ [...existing,...incoming].forEach(raw=>{
+  const name=String(raw||'').replace(/\s+/g,' ').trim();
+  if(!name)return;
+  const key=normalizeName(name);
+  if(!map.has(key))map.set(key,name);
+ });
+ return [...map.values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
+}
+function catalogHasName(name){
+ const key=normalizeName(name);
+ return DB.catalogo.some(n=>normalizeName(n)===key);
+}
+function render(){
+ let ativos=DB.lotes.filter(l=>l.quantidade>0), venc=ativos.filter(l=>days(l.validade)<0), prox=ativos.filter(l=>days(l.validade)>=0&&days(l.validade)<=7);
+ $('painel').innerHTML=`<div class="grid"><div class="stat"><strong>${DB.produtos.length}</strong><span>Produtos</span></div><div class="stat"><strong>${ativos.reduce((s,l)=>s+l.quantidade,0)}</strong><span>Unidades</span></div><div class="stat"><strong>${prox.length}</strong><span>Lotes até 7 dias</span></div><div class="stat"><strong>${venc.length}</strong><span>Lotes vencidos</span></div></div>
+ <div class="card"><h2>Prioridades</h2>${lotsTable([...ativos].sort((a,b)=>a.validade.localeCompare(b.validade)).slice(0,20))}</div>`;
+ $('scanner').innerHTML=`<div class="card"><h2>Escanear produto</h2><p class="mut">Use a câmera quando disponível ou digite o código de barras.</p><div class="field"><label>Código de barras</label><input id="scanInput" inputmode="numeric" enterkeyhint="search" autocomplete="off" placeholder="Leia ou digite o código" onkeydown="scanInputKey(event)"></div><div class="row"><button class="primary bigscan" onclick="lookupCode(this)">Consultar código</button><button class="secondary" onclick="cameraScan(this)">📷 Usar câmera</button></div><div id="scanResult"></div></div>`;
+ $('produtos').innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Produtos e lotes</h2><div class="mut">Cada código pode ter várias validades e avisos diferentes.</div></div></div>${productCards()}</div>`;
+ $('catalogo').innerHTML=`<div class="card"><h2>Importar catálogo de nomes</h2><p class="mut">Selecione Excel (.xlsx/.xls) ou CSV. Depois escolha qual coluna contém o nome dos produtos.</p><input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" onchange="readSheet(event)"><div id="importArea"></div></div>
+ <div class="card"><h3>Catálogo importado (${DB.catalogo.length})</h3><input id="catSearch" placeholder="Pesquisar nome..." oninput="filterCatalog()"><div id="catList">${catalogList(DB.catalogo.slice(0,200))}</div></div>`;
+ $('config').innerHTML=`<div class="card"><h2>Configurações</h2><div class="field"><label>Aviso padrão para novos lotes (dias antes)</label><input id="defaultDays" type="number" min="0" value="${DB.config?.avisoPadraoDias??7}"></div><button class="primary" onclick="saveConfig(this)">Salvar configuração</button></div>`;
+ setTimeout(updateBackTop,0);
+}
+function lotsTable(ls){if(!ls.length)return '<p class="mut">Nenhum lote.</p>';return `<div class="scroll"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Validade</th><th>Aviso</th><th>Status</th></tr></thead><tbody>${ls.map(l=>`<tr><td>${esc(prod(l.produtoId)?.nome||'?')}</td><td>${l.quantidade}</td><td>${br(l.validade)}</td><td>${l.avisoDiasAntes} dia(s)</td><td>${pill(l.validade)}</td></tr>`).join('')}</tbody></table></div>`}
+function productCards(){if(!DB.produtos.length)return '<p class="mut">Nenhum produto associado a código de barras ainda.</p>';return DB.produtos.map(p=>{let ls=DB.lotes.filter(l=>l.produtoId===p.id);return `<div class="lot"><div class="lothead"><div><b>${esc(p.nome)}</b><div class="mut code">${esc(p.codigoBarras)}</div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');openNewLot('${p.codigoBarras}')">+ validade</button></div>${ls.length?lotsTable(ls):'<p class="mut">Sem lotes.</p>'}</div>`}).join('')}
+function catalogList(a){return a.map(x=>`<div class="catalogItem"><span class="catalogItemName">${esc(x)}</span><button class="danger catalogDelete" onclick="deleteCatalogName('${encodeURIComponent(x)}',this)">Excluir</button></div>`).join('')||'<p class="mut">Catálogo vazio.</p>'}
+function filterCatalog(){let q=normalizeName($('catSearch').value);$('catList').innerHTML=catalogList(DB.catalogo.filter(x=>normalizeName(x).includes(q)).slice(0,200))}
+async function deleteCatalogName(encodedName,btn){
+ const nome=decodeURIComponent(encodedName);
+ if(!confirm(`Excluir "${nome}" do catálogo?\n\nProdutos e lotes já cadastrados com esse nome não serão excluídos.`))return;
+ return withBusy(btn,'Excluindo...',async()=>{
+  const anterior=[...DB.catalogo];
+  DB.catalogo=DB.catalogo.filter(n=>normalizeName(n)!==normalizeName(nome));
+  const ok=await saveDB();
+  if(!ok){DB.catalogo=anterior;render();return}
+  toast('Nome excluído do catálogo.');
+ });
+}
+async function readSheet(ev){
+ let f=ev.target.files[0];if(!f)return;let buf=await f.arrayBuffer(), wb=XLSX.read(buf), ws=wb.Sheets[wb.SheetNames[0]], rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+ if(!rows.length)return alert('Planilha vazia.');let headers=rows[0].map((x,i)=>String(x||`Coluna ${i+1}`));
+ window._sheetRows=rows;
+ $('importArea').innerHTML=`<div class="field" style="margin-top:12px"><label>Coluna com o nome dos produtos</label><select id="nameColumn">${headers.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('')}</select></div><button class="primary" onclick="importNames(this)">Importar nomes</button>`;
+}
+async function importNames(btn){return withBusy(btn,'Importando...',async()=>{
+ let i=+$('nameColumn').value, names=window._sheetRows.slice(1).map(r=>String(r[i]||'').trim()).filter(Boolean);
+ DB.catalogo=mergeCatalogNames(DB.catalogo,names);
+ await saveDB();
+})}
+function lookupCode(btn){let c=$('scanInput').value.trim();if(!c)return alert('Informe ou leia o código de barras.');if(!busy(btn,'Consultando...'))return;try{showCode(c)}finally{setTimeout(()=>free(btn),180)}}
+function scanInputKey(e){
+ if(e.key!=='Enter')return;
+ e.preventDefault();
+ const btn=e.currentTarget.closest('.card')?.querySelector('button.primary.bigscan');
+ lookupCode(btn);
+}
+function showCode(c){
+ let p=DB.produtos.find(x=>x.codigoBarras===c);
+ if(!p){$('scanResult').innerHTML=`<div class="card"><h3>Código ainda não cadastrado</h3><div class="code">${esc(c)}</div><p class="mut">Associe este código a um nome do catálogo ou cadastre um nome novo.</p><button class="primary" onclick="quickBusy(this,'Abrindo...');openNewProduct('${esc(c)}')">Cadastrar produto</button></div>`;return}
+ let ls=DB.lotes.filter(l=>l.produtoId===p.id);
+ $('scanResult').innerHTML=`<div class="card"><h3>${esc(p.nome)}</h3><div class="code mut">${esc(c)}</div>${ls.map(l=>lotCard(l)).join('')||'<p class="mut">Nenhuma validade cadastrada.</p>'}<button class="primary" onclick="quickBusy(this,'Abrindo...');openNewLot('${esc(c)}')">+ Adicionar nova validade</button></div>`;
+}
+function lotCard(l){return `<div class="lot"><div class="lothead"><div><b>${l.quantidade} unidade(s)</b><div>Validade: ${br(l.validade)} • aviso ${l.avisoDiasAntes} dia(s) antes</div><div>${pill(l.validade)}</div></div><button class="secondary" onclick="quickBusy(this,'Abrindo...');editLot('${l.id}')">Editar</button></div></div>`}
+function openNewProduct(code){
+ $('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Associar código ao produto</h2><div class="field"><label>Código</label><input value="${esc(code)}" disabled></div>
+ <div class="field"><label>Escolher nome do catálogo</label><input id="nameSearch" list="namesList" placeholder="Digite para pesquisar..."><datalist id="namesList">${DB.catalogo.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
+ <div class="mut">Se o nome não existir, basta digitar um novo nome.</div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveNewProduct('${esc(code)}',this)">Continuar</button></div></div></div>`;
+}
+async function saveNewProduct(code,btn){let nome=$('nameSearch').value.replace(/\s+/g,' ').trim();if(!nome)return alert('Informe o nome.');return withBusy(btn,'Salvando...',async()=>{let existente=DB.catalogo.find(n=>normalizeName(n)===normalizeName(nome));if(existente)nome=existente;else DB.catalogo=mergeCatalogNames(DB.catalogo,[nome]);let p={id:crypto.randomUUID(),codigoBarras:code,nome};DB.produtos.push(p);let ok=await saveDB();if(ok!==false){closeModal();openLotForm(p)}})}
+function openNewLot(code){let p=DB.produtos.find(x=>x.codigoBarras===code);openLotForm(p)}
+function openLotForm(p){
+ $('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Nova validade</h2><p><b>${esc(p.nome)}</b><br><span class="code mut">${esc(p.codigoBarras)}</span></p>
+ <div class="formgrid"><div class="field"><label>Quantidade</label><input id="lq" type="number" min="0" value="1"></div><div class="field"><label>Validade</label><input id="lv" type="date"></div><div class="field"><label>Avisar quantos dias antes?</label><input id="la" type="number" min="0" value="${DB.config?.avisoPadraoDias??7}"></div><div class="field"><label>Lote (opcional)</label><input id="ll" placeholder="Identificação do lote"></div></div>
+ <div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveLot('${p.id}',this)">Salvar</button></div></div></div>`;
+}
+async function saveLot(pid,btn){if(!$('lv').value)return alert('Informe a validade.');return withBusy(btn,'Salvando...',async()=>{DB.lotes.push({id:crypto.randomUUID(),produtoId:pid,quantidade:+$('lq').value||0,validade:$('lv').value,avisoDiasAntes:+$('la').value||0,lote:$('ll').value.trim(),notificacoes:[]});let ok=await saveDB();if(ok){closeModal();go('scanner')}})}
+function editLot(id){let l=DB.lotes.find(x=>x.id===id),p=prod(l.produtoId);$('modal').innerHTML=`<div class="modal"><div class="dialog"><h2>Editar lote</h2><p><b>${esc(p.nome)}</b></p><div class="formgrid"><div class="field"><label>Quantidade</label><input id="eq" type="number" min="0" value="${l.quantidade}"></div><div class="field"><label>Validade</label><input id="ev" type="date" value="${l.validade}"></div><div class="field"><label>Aviso (dias antes)</label><input id="ea" type="number" min="0" value="${l.avisoDiasAntes}"></div><div class="field"><label>Lote</label><input id="el" value="${esc(l.lote||'')}"></div></div><div class="row"><button class="warning" onclick="$('eq').value=Math.max(0,+$('eq').value-1)">−1</button><button class="secondary" onclick="$('eq').value=+$('eq').value+1">+1</button><button class="danger" onclick="$('eq').value=0">Zerar</button></div><div class="actions"><button class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" onclick="updateLot('${id}',this)">Salvar alterações</button></div></div></div>`}
+async function updateLot(id,btn){return withBusy(btn,'Salvando...',async()=>{let l=DB.lotes.find(x=>x.id===id);l.quantidade=Math.max(0,+$('eq').value||0);l.validade=$('ev').value;l.avisoDiasAntes=Math.max(0,+$('ea').value||0);l.lote=$('el').value.trim();l.notificacoes=[];let ok=await saveDB();if(ok)closeModal()})}
+function closeModal(){$('modal').innerHTML=''}
+async function saveConfig(btn){return withBusy(btn,'Salvando...',async()=>{DB.config=DB.config||{};DB.config.avisoPadraoDias=Math.max(0,+$('defaultDays').value||0);await saveDB()})}
+async function cameraScan(btn){
+ if(!busy(btn,'Abrindo câmera...'))return;
+ if(!('BarcodeDetector' in window)){free(btn);return alert('A leitura automática pela câmera não é suportada neste navegador. Digite o código ou use um leitor Bluetooth/USB.');}
+ try{let stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});let video=document.createElement('video');video.srcObject=stream;video.setAttribute('playsinline','');await video.play();$('modal').innerHTML='<div class="modal"><div class="dialog"><h2>Aponte para o código de barras</h2><div id="videoBox"></div><div class="actions"><button class="secondary" onclick="stopCam()">Cancelar</button></div></div></div>';$('videoBox').appendChild(video);video.style.width='100%';window._stream=stream;free(btn);window._camTimer=setInterval(async()=>{try{let det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});let codes=await det.detect(video);if(codes[0]){let c=codes[0].rawValue;stopCam();go('scanner');setTimeout(()=>{$('scanInput').value=c;showCode(c)},50)}}catch(e){}},600)
+ }catch(e){free(btn);alert('Não foi possível acessar a câmera: '+e.message)}
+}
+function stopCam(){clearInterval(window._camTimer);window._stream?.getTracks().forEach(t=>t.stop());closeModal()}
+function scrollToTop(){window.scrollTo({top:0,behavior:'smooth'})}
+function updateBackTop(){
+ const b=$('backTop');if(!b)return;
+ const enough=document.documentElement.scrollHeight>window.innerHeight+350;
+ b.classList.toggle('show',enough&&window.scrollY>420);
+}
+window.addEventListener('scroll',updateBackTop,{passive:true});
+window.addEventListener('resize',updateBackTop);
+function pageTitle(id){return ({painel:'Painel',scanner:'Escanear produto',produtos:'Produtos',catalogo:'Catálogo',config:'Configurações'})[id]||'ValidaFácil'}
+function toggleMenu(){document.body.classList.toggle('menuOpen')}
+function closeMenu(){document.body.classList.remove('menuOpen')}
+function go(id){document.querySelectorAll('section').forEach(s=>s.classList.add('hide'));$(id).classList.remove('hide');document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===id));let mt=$('mobileTitle');if(mt)mt.textContent=pageTitle(id);if(window.innerWidth<=760)closeMenu();window.scrollTo({top:0});setTimeout(updateBackTop,0)}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>go(b.dataset.p));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
+render();sync();
+</script>
+</body>
+</html>
